@@ -1,0 +1,116 @@
+# Tầng C — pipeline đóng quảng cáo
+min_watch_seconds = 5.0
+rescan_interval_s = 2.0
+rescan_max_s      = 45.0
+corner_box        = 130     # point
+edge_band_pct     = 0.15    # cửa hình học: tâm phải nằm trong dải này
+max_area_pct      = 0.04    # cửa kích thước
+confirm_delay_s   = 1.2     # chờ bao lâu rồi xác nhận tap có ăn
+
+# Bước 2b — dò dấu ✕ bằng OpenCV, quét CẢ FRAME (6-16ms), chạy TRƯỚC VLM.
+# Không dùng crop góc: đo thật trên tấm App Store sheet, ✕ ở (46,145) — y=145
+# nằm NGOÀI ô góc 130x130. Nút đóng không nhất thiết sát góc, có thể thấp hơn.
+# `edge_band_pct` bên trên là thứ lọc ứng viên giữa màn.
+# Đo thật trên quảng cáo đầu tiên gặp được: ✕ thật điểm 0.616 / giữa 0.007;
+# hai dương tính giả điểm 0.247 và 0.218 / giữa 0.240 và 0.204.
+icon_min_score    = 0.35
+icon_max_mid      = 0.15
+
+# Dải mép dùng khi lấy dấu ✕ làm bằng chứng PHÂN LOẠI màn (classify -> AD).
+# Rộng hơn `edge_band_pct` một chút, khớp với `_near_edge` của classify.
+# Đo trên 44 ảnh data/captures: 8 màn quảng cáo đều có ✕ trong dải này, 25 màn
+# game thuần có 4 ✕ nhưng đều ở giữa (y/h 0.70-0.78) -> 0 dương tính giả.
+icon_classify_band = 0.18
+
+# Cửa lọc thứ 4: ứng viên không được nằm trên NỀN TRỐNG.
+# Đo thật: nền trắng trơn 1.97 · viên thuốc "Reward granted" 10.83 · ✕ thật 5.29
+min_edge_density  = 3.0
+
+# Đang đếm ngược phần thưởng -> KHÔNG được tap nút đóng.
+# Bug đã gặp thật: "Reward in 23 seconds" ở (111,122), nút ✕ ở (31,123), cách
+# nhau 80pt. Tap ✕ -> dialog "Close Video? You will lose your reward", đếm ngược
+# dừng, mất thưởng, và hai nút dialog ở giữa màn nên bị cửa hình học chặn -> kẹt.
+# CHỈ những cụm ĐI KÈM đồng hồ. "Ad 1 of 2" / "Ad 2 of 2" đã bị bỏ khỏi đây:
+# chúng là chỉ số tiến độ TỒN TẠI SUỐT quảng cáo, nên mỗi tick lại hoãn thêm và
+# bot không bao giờ quét. Đã xảy ra thật.
+countdown_patterns = ["reward in", "phần thưởng sau", "còn lại", "remaining"]
+
+# Tín hiệu DƯƠNG là đã nhận thưởng xong -> thôi chờ ngay, kể cả khi trên màn
+# vẫn còn chữ khác.
+reward_done_patterns = ["reward granted", "reward received", "đã nhận thưởng",
+                        "nhận thưởng thành công"]
+
+# Trần tổng thời gian chờ đếm ngược cho MỘT quảng cáo. Hết trần thì quét luôn.
+countdown_max_wait_s = 75.0
+countdown_default_wait_s = 6.0     # khi khớp pattern nhưng không đọc ra số giây
+countdown_extra_wait_s   = 1.5     # chờ thêm cho chắc
+
+# Nếu dialog xác nhận đóng video đã hiện thì bấm RESUME VIDEO để giữ thưởng.
+# Nút này nằm GIỮA MÀN nên không đi qua cửa hình học — xử lý riêng.
+resume_dialog_hints = ["close video", "lose your reward", "mất phần thưởng"]
+resume_button_text  = "resume video"
+
+close_keywords = ["skip", "skip ad", "close", "đóng", "continue", "tiếp tục",
+                  "done", "xong", "no thanks", "bỏ qua", "×", "✕", "x"]
+
+# Keyword dùng để PHÂN LOẠI màn hình (classify -> AD). HẸP HƠN close_keywords,
+# vì hai việc khác nhau: tìm nút đóng khi đã BIẾT đang ở quảng cáo thì rộng tay
+# được, còn kết luận "màn này là quảng cáo" thì sai một chữ là hỏng cả phiên.
+#
+# Bug đã gặp thật (phiên data/sessions/20260830-045859): màn rương vàng cuối
+# lượt có nút CONTINUE ở (116,779) — ry=0.867 nên lọt dải mép 18% — và
+# "continue" nằm trong close_keywords -> classify ra AD. Engine ở GAME_PLAY
+# thấy AD là nhảy thẳng sang AD_WATCHING TRƯỚC KHI chạy luật, còn AD_CLOSING
+# thì thấy luật CONTINUE khớp nên tưởng đã đóng xong -> về GAME_PLAY. Vòng lặp
+# 5 giây/lần suốt 60 giây, không một hành động nào được bắn, luật
+# "Rương vàng end -> chọn CONTINUE" không bao giờ chạy.
+#
+# Quy tắc: chữ nào cũng xuất hiện trên NÚT CỦA GAME thì không được ở đây.
+# Đã bỏ: continue / done / xong (game có cả ba), và ×/✕/x (dưới 3 ký tự,
+# `_match_word` vốn đã loại). Dấu ✕ vẽ bằng đồ hoạ do `_icon_near_edge` lo.
+classify_keywords = ["skip", "skip ad", "close", "đóng", "no thanks",
+                     "bỏ qua", "tiếp tục"]
+
+# Cửa blocklist: KHÔNG BAO GIỜ tap nếu quanh đó có các chữ này.
+# Florence-2 đã thực sự gán nhãn nút Install là "close button" -> đây là chốt an toàn.
+blocklist = ["install", "cài đặt", "get", "download", "tải", "play", "chơi",
+             "open", "mở", "subscribe", "đăng ký", "buy", "mua", "free trial",
+             "dùng thử", "shop", "claim"]
+
+[vlm]
+enabled = true
+model   = "florence-community/Florence-2-base-ft"
+device  = "mps"
+dtype   = "float16"
+beams   = 1
+# "close button" MỘT MÌNH là chưa đủ. Trên quảng cáo playable, nút đóng là nút
+# skip hình tròn có dấu >>| chứ không phải dấu ✕; với prompt "close button"
+# Florence-2 trả box phủ 98% crop (= không thấy gì), còn "circular button" trả
+# đúng (376,122) 26x26 — lệch 1pt so với nút thật.
+prompts = ["close button", "circular button"]
+corners = ["tr", "tl", "br", "bl"]   # thứ tự thử
+
+# Cửa kích thước tuyệt đối, CHỈ áp cho tầng C. Xem `AdCloser._gate_side`.
+# Đo 22 ứng viên lọt đủ 4 cửa cũ: 3 đúng (26/46/47pt), 19 sai (11..129pt).
+# Khoảng [20,50] giữ cả 3 đúng, loại 15/19 sai -> chính xác 14% -> 43%.
+min_side_pt = 20
+max_side_pt = 50
+
+# Bước 5 — blind tap. `at` là rel theo MÀN HÌNH THẬT (đã trừ viền máy), KHÔNG
+# phải theo cửa sổ; `AdCloser.blind_points` lo việc quy đổi. Hiểu nhầm chỗ này
+# là bug đã gặp: (0.93,0.05) theo cửa sổ ra điểm cách mép trên màn hình 7pt,
+# rơi vào vùng notch. Lưới dưới đây bám đúng chỗ 5 nút đóng thật đã đo được
+# (quy về rel màn hình): (0.934,0.100) (0.924,0.035) (0.096,0.126)
+# (0.921,0.062) (0.061,0.097). Phải-trước vì hay gặp hơn.
+[[blind_tap]]
+at = [0.93, 0.10]
+[[blind_tap]]
+at = [0.93, 0.04]
+[[blind_tap]]
+at = [0.07, 0.10]
+[[blind_tap]]
+at = [0.07, 0.13]
+[[blind_tap]]
+at = [0.93, 0.16]
+[[blind_tap]]
+at = [0.07, 0.04]

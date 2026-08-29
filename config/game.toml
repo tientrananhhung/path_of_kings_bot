@@ -1,0 +1,623 @@
+[[rule]]
+name = "PVP RAID -> swipe trái (Run)"
+enabled = true
+priority = 2
+cooldown_s = 3
+enters_ad = false
+
+[rule.when]
+kind = "text"
+contains = "raid"
+
+[rule.do]
+action = "swipe"
+from = [
+    0.5,
+    0.78,
+]
+to = [
+    0.05,
+    0.78,
+]
+duration_ms = 400
+steps = 24
+hold_end_ms = 140
+
+[[rule]]
+name = "tap giữa màn khi đứng yên"
+enabled = false
+priority = 1
+cooldown_s = 5
+enters_ad = false
+
+[rule.when]
+kind = "idle"
+seconds = 12
+
+[rule.do]
+action = "tap"
+at = [
+    0.5,
+    0.55,
+]
+
+[[rule]]
+name = "NEW GEAR -> swipe trái (Discard)"
+enabled = true
+priority = 3
+cooldown_s = 3
+enters_ad = false
+
+[rule.when]
+kind = "text"
+contains = "new gear found"
+
+[rule.do]
+action = "swipe"
+from = [
+    0.5,
+    0.607,
+]
+to = [
+    0.05,
+    0.607,
+]
+duration_ms = 400
+steps = 24
+hold_end_ms = 140
+
+[[rule]]
+name = "RITUAL TROUBLE -> chọn Pray"
+enabled = true
+priority = 4
+cooldown_s = 3
+enters_ad = false
+
+[rule.when]
+kind = "text"
+contains = "ritual trouble"
+
+[rule.do]
+action = "tap_text"
+text = "pray"
+dy = -0.055
+
+[[rule]]
+name = "RITUAL TROUBLE -> chọn COLLECT"
+enabled = true
+priority = 5
+cooldown_s = 3
+enters_ad = false
+
+[rule.when]
+kind = "text"
+contains = "ritual trouble"
+
+[rule.do]
+action = "tap_text"
+text = "collect"
+dy = 0
+
+[[rule]]
+name = "HERO SUMMON -> CANCEL"
+enabled = true
+priority = 6
+cooldown_s = 3
+enters_ad = false
+
+[rule.when]
+kind = "text"
+contains = "hero summon"
+
+[rule.do]
+action = "tap_text"
+text = "cancel"
+dy = 0
+
+[[rule]]
+name = "JUST GREG -> chọn Help"
+enabled = true
+priority = 7
+cooldown_s = 3
+enters_ad = false
+
+[rule.when]
+kind = "text"
+contains = "just greg"
+
+[rule.do]
+action = "tap_text"
+text = "help"
+dy = -0.055
+
+[[rule]]
+name = "JUST GREG -> chọn COLLECT"
+enabled = true
+priority = 8
+cooldown_s = 3
+enters_ad = false
+
+[rule.when]
+kind = "text"
+contains = "just greg"
+
+[rule.do]
+action = "tap_text"
+text = "collect"
+dy = 0
+
+[[rule]]
+name = "EMPYREAL SET -> swipe trái (SKIP)"
+enabled = true
+priority = 9
+cooldown_s = 3
+enters_ad = false
+
+[rule.when]
+kind = "text"
+contains = "empyreal set"
+
+[rule.do]
+action = "swipe"
+from = [
+    0.5,
+    0.797,
+]
+to = [
+    0.05,
+    0.797,
+]
+duration_ms = 400
+steps = 24
+hold_end_ms = 140
+
+[[rule]]
+name = "UPGRADE YOUR GEAR -> swipe phải (UPGRADE)"
+enabled = true
+priority = 10
+cooldown_s = 3
+enters_ad = true
+
+[rule.when]
+kind = "text"
+contains = "upgrade your gear"
+
+[rule.do]
+action = "swipe"
+from = [
+    0.5,
+    0.786,
+]
+to = [
+    0.95,
+    0.786,
+]
+duration_ms = 400
+steps = 24
+hold_end_ms = 140
+
+[[rule]]
+name = "WRONG TIME PERIOD -> chọn Help"
+enabled = true
+priority = 11
+cooldown_s = 3
+enters_ad = false
+
+[rule.when]
+kind = "text"
+contains = "wrong time period"
+
+[rule.do]
+action = "tap_text"
+text = "help"
+dy = -0.055
+
+[[rule]]
+name = "WRONG TIME PERIOD -> chọn Collect"
+enabled = true
+priority = 12
+cooldown_s = 3
+enters_ad = false
+
+[rule.when]
+kind = "text"
+contains = "wrong time period"
+
+[rule.do]
+action = "tap_text"
+text = "collect"
+dy = 0
+
+[[rule]]
+name = "MYTHRION SET -> swipe trái (SKIP)"
+enabled = true
+priority = 50
+cooldown_s = 3
+enters_ad = false
+
+[rule.when]
+kind = "text"
+contains = "mythrion set"
+
+[rule.do]
+action = "swipe"
+from = [
+    0.5,
+    0.797,
+]
+to = [
+    0.05,
+    0.797,
+]
+duration_ms = 400
+
+[[rule]]
+name = "HELLO DOWN THERE -> chọn Pray"
+enabled = true
+priority = 13
+cooldown_s = 3
+enters_ad = false
+
+[rule.when]
+kind = "text"
+contains = "hello down there"
+
+[rule.do]
+action = "tap_text"
+text = "help"
+dy = -0.055
+
+[[rule]]
+name = "HELLO DOWN THERE -> chọn COLLECT"
+enabled = true
+priority = 14
+cooldown_s = 3
+enters_ad = false
+
+[rule.when]
+kind = "text"
+contains = "hello down there"
+
+[rule.do]
+action = "tap_text"
+text = "collect"
+dy = 0
+
+[[rule]]
+name = "Rương vàng end -> chọn CONTINUE"
+enabled = true
+priority = 99
+cooldown_s = 3
+enters_ad = false
+
+[rule.when]
+kind = "text"
+contains = "continue"
+
+[rule.do]
+action = "tap_text"
+text = "continue"
+dy = 0
+
+[[rule]]
+name = "SPECIAL ENCOUNTER -> swipe phải (Fight)"
+enabled = true
+priority = 15
+cooldown_s = 3
+enters_ad = false
+
+[rule.when]
+kind = "text"
+contains = "special encounter"
+
+[rule.do]
+action = "swipe"
+from = [
+    0.5,
+    0.786,
+]
+to = [
+    0.95,
+    0.786,
+]
+duration_ms = 400
+
+[[rule]]
+name = "CLAN CONTRACTS -> chọn Cancel"
+enabled = true
+priority = 16
+cooldown_s = 3
+enters_ad = false
+
+[rule.when]
+kind = "text"
+contains = "clan contracts"
+
+[rule.do]
+action = "tap_text"
+text = "cancel"
+dy = 0
+
+[[rule]]
+name = "ARROW TO THE KNEE -> chọn Smack"
+enabled = true
+priority = 17
+cooldown_s = 3
+enters_ad = false
+
+[rule.when]
+kind = "text"
+contains = "arrow to the knee"
+
+[rule.do]
+action = "tap_text"
+text = "smack"
+dy = 0
+
+[[rule]]
+name = "ARROW TO THE KNEE -> chọn COLLECT"
+enabled = true
+priority = 18
+cooldown_s = 3
+enters_ad = false
+
+[rule.when]
+kind = "text"
+contains = "arrow to the knee"
+
+[rule.do]
+action = "tap_text"
+text = "collect"
+dy = 0
+
+[[rule]]
+name = "YOU SHALL NOT PASS - chọn Listen"
+enabled = true
+priority = 19
+cooldown_s = 3
+enters_ad = false
+
+[rule.when]
+kind = "text"
+contains = "you shall not pass"
+
+[rule.do]
+action = "tap_text"
+text = "listen"
+dy = 0
+
+[[rule]]
+name = "YOU SHALL NOT PASS - chọn COLLECT"
+enabled = true
+priority = 20
+cooldown_s = 3
+enters_ad = false
+
+[rule.when]
+kind = "text"
+contains = "you shall not pass"
+
+[rule.do]
+action = "tap_text"
+text = "collect"
+dy = 0
+
+[[rule]]
+name = "SOLARIUS SET -> swipe trái (SKIP)"
+enabled = true
+priority = 21
+cooldown_s = 3
+enters_ad = false
+
+[rule.when]
+kind = "text"
+contains = "solarius set"
+
+[rule.do]
+action = "swipe"
+from = [
+    0.5,
+    0.797,
+]
+to = [
+    0.05,
+    0.797,
+]
+duration_ms = 400
+
+[[rule]]
+name = "ROYAL TAX AUDIT -> chọn Smack"
+enabled = true
+priority = 22
+cooldown_s = 3
+enters_ad = false
+
+[rule.when]
+kind = "text"
+contains = "royal tax audit"
+
+[rule.do]
+action = "tap_text"
+text = "pray"
+dy = 0
+
+[[rule]]
+name = "RUNAWAY PRINCESS -> chọn Help"
+enabled = true
+priority = 23
+cooldown_s = 3
+enters_ad = false
+
+[rule.when]
+kind = "text"
+contains = "runaway princess"
+
+[rule.do]
+action = "tap_text"
+text = "help"
+dy = 0
+
+[[rule]]
+name = "RUNAWAY PRINCESS -> chọn COLLECT"
+enabled = true
+priority = 24
+cooldown_s = 3
+enters_ad = false
+
+[rule.when]
+kind = "text"
+contains = "runaway princess"
+
+[rule.do]
+action = "tap_text"
+text = "collect"
+dy = 0
+
+[[rule]]
+name = "GOLD BLESSING -> swipe phải"
+enabled = true
+priority = 25
+cooldown_s = 3
+enters_ad = true
+
+[rule.when]
+kind = "text"
+contains = "gold blessing"
+
+[rule.do]
+action = "swipe"
+from = [
+    0.5,
+    0.786,
+]
+to = [
+    0.95,
+    0.786,
+]
+duration_ms = 400
+
+[[rule]]
+name = "WRONG DIMENSION -> chọn Help"
+enabled = true
+priority = 26
+cooldown_s = 3
+enters_ad = false
+
+[rule.when]
+kind = "text"
+contains = "wrong dimension"
+
+[rule.do]
+action = "tap_text"
+text = "help"
+dy = 0
+
+[[rule]]
+name = "What to do with the lost soul -> swipe trái"
+enabled = true
+priority = 27
+cooldown_s = 3
+enters_ad = false
+
+[rule.when]
+kind = "text"
+contains = "what to do with the lost soul"
+
+[rule.do]
+action = "swipe"
+from = [
+    0.5,
+    0.786,
+]
+to = [
+    0.95,
+    0.786,
+]
+duration_ms = 400
+
+[[rule]]
+name = "KISS THE PRINCESS -> chọn Kiss"
+enabled = true
+priority = 28
+cooldown_s = 3
+enters_ad = false
+
+[rule.when]
+kind = "text"
+contains = "kiss the princess"
+
+[rule.do]
+action = "tap_text"
+text = "kiss"
+dy = 0
+
+[[rule]]
+name = "KISS THE PRINCESS -> chọn COLLECT"
+enabled = true
+priority = 29
+cooldown_s = 3
+enters_ad = false
+
+[rule.when]
+kind = "text"
+contains = "kiss the princess"
+
+[rule.do]
+action = "tap_text"
+text = "collect"
+dy = 0
+
+[[rule]]
+name = "FREE BALLOON -> chọn Smack"
+enabled = true
+priority = 30
+cooldown_s = 3
+enters_ad = false
+
+[rule.when]
+kind = "text"
+contains = "free balloon"
+
+[rule.do]
+action = "tap_text"
+text = "smack"
+dy = 0
+
+[[rule]]
+name = "FREE BALLOON -> chọn COLLECT"
+enabled = true
+priority = 31
+cooldown_s = 3
+enters_ad = false
+
+[rule.when]
+kind = "text"
+contains = "free balloon"
+
+[rule.do]
+action = "tap_text"
+text = "collect"
+dy = 0
+
+[[rule]]
+name = "PRIMORDIA SET -> Swipe trái (SKIP)"
+enabled = true
+priority = 50
+cooldown_s = 3
+enters_ad = false
+
+[rule.when]
+kind = "text"
+contains = "primordia sét"
+
+[rule.do]
+action = "swipe"
+from = [
+    0.5,
+    0.786,
+]
+to = [
+    0.95,
+    0.786,
+]
+duration_ms = 220

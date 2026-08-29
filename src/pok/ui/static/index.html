@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>POK Bot</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header>
+  <div class="brand">POK<span>bot</span></div>
+  <div class="badges">
+    <span id="b-state" class="badge">—</span>
+    <span id="b-kind" class="badge dim">—</span>
+    <span id="b-fps" class="badge dim">—</span>
+    <span id="b-taps" class="badge dim">—</span>
+    <span id="b-conn" class="badge warn">đang kết nối…</span>
+  </div>
+  <div class="controls">
+    <button id="btn-start" class="ok">Start</button>
+    <button id="btn-pause">Pause</button>
+    <button id="btn-stop">Stop</button>
+    <button id="btn-kill" class="danger">KILL</button>
+  </div>
+</header>
+
+<nav id="tabs">
+  <button data-tab="dash" class="active">Dashboard</button>
+  <button data-tab="rules">Game Rules</button>
+  <button data-tab="ads">Ads</button>
+  <button data-tab="cap">Capture</button>
+  <button data-tab="sess">Sessions</button>
+  <button data-tab="probe">Probe</button>
+  <button data-tab="set">Settings</button>
+</nav>
+
+<main>
+  <!-- ① DASHBOARD -->
+  <section id="tab-dash" class="tab active">
+    <div class="split">
+      <div class="viewport-wrap">
+        <div id="viewport" class="viewport">
+          <img id="frame" alt="live">
+          <canvas id="overlay"></canvas>
+        </div>
+        <div class="vp-tools">
+          <label><input type="checkbox" id="opt-overlay" checked> overlay</label>
+          <label><input type="checkbox" id="opt-trail" checked> trail (20)</label>
+          <label id="lbl-tapmode"><input type="checkbox" id="opt-tapmode">
+            tap khi click ảnh</label>
+          <span id="vp-warn"></span>
+          <span class="hint" id="vp-hint">—</span>
+        </div>
+      </div>
+      <div class="side">
+        <div class="card">
+          <h3>Trạng thái</h3>
+          <table class="kv" id="kv-state"></table>
+        </div>
+        <div class="card">
+          <h3>Thống kê phiên</h3>
+          <table class="kv" id="kv-stats"></table>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <h3>Log <button id="btn-clearlog" class="mini">xoá</button></h3>
+      <div id="log" class="log"></div>
+    </div>
+  </section>
+
+  <!-- ② GAME RULES -->
+  <section id="tab-rules" class="tab">
+    <div class="card">
+      <h3>Tầng A — luật chơi game
+        <button id="rules-save" class="ok mini">Lưu &amp; reload nóng</button>
+        <button id="rules-add" class="mini">+ luật</button>
+      </h3>
+      <p class="hint">Toạ độ theo tỉ lệ cửa sổ 0..1. Bấm <b>chọn</b> rồi click lên ảnh
+         ở tab Dashboard để lấy toạ độ. Luật xét theo <b>priority</b> tăng dần.</p>
+      <div class="rules-find">
+        <input id="rules-q" type="search" autocomplete="off"
+               placeholder="tìm luật — tên, chữ trong contains, chữ trong text (bỏ dấu cũng khớp)">
+        <span class="hint" id="rules-count"></span>
+      </div>
+      <div id="rules-list"></div>
+    </div>
+  </section>
+
+  <!-- ③ ADS -->
+  <section id="tab-ads" class="tab">
+    <div class="split">
+      <div class="card">
+        <h3>Tầng C — pipeline đóng quảng cáo
+          <button id="ads-save" class="ok mini">Lưu</button></h3>
+        <table class="form" id="ads-form"></table>
+        <h4>close_keywords — dùng để TÌM NÚT khi đã biết đang ở quảng cáo</h4>
+        <textarea id="ads-kw" rows="4"></textarea>
+        <h4>classify_keywords — dùng để KẾT LUẬN "màn này là quảng cáo"</h4>
+        <p class="hint">Hẹp hơn danh sách trên. Chữ nào cũng xuất hiện trên nút
+           của <b>game</b> (CONTINUE, DONE...) thì đừng để ở đây: màn game sẽ bị
+           coi là quảng cáo và luật của màn đó không bao giờ chạy.</p>
+        <textarea id="ads-ckw" rows="3"></textarea>
+        <h4>blocklist — KHÔNG BAO GIỜ tap nếu quanh đó có các chữ này</h4>
+        <p class="hint danger-text">Florence-2 đã thực sự gán nhãn nút <b>Install</b>
+           là "close button". Đây là chốt an toàn, đừng để trống.</p>
+        <textarea id="ads-block" rows="4"></textarea>
+      </div>
+      <div class="card">
+        <h3>Chạy pipeline trên frame hiện tại</h3>
+        <button id="ads-run" class="ok">Chạy thử (OCR + VLM 4 góc)</button>
+        <label class="inline"><input type="checkbox" id="ads-vlm" checked> gồm VLM</label>
+        <div id="ads-result" class="result"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ④ CAPTURE -->
+  <section id="tab-cap" class="tab">
+    <div class="card">
+      <h3>Thu ảnh quảng cáo thật
+        <button id="cap-shot" class="ok mini">Chụp ngay</button>
+        <button id="cap-reload" class="mini">tải lại</button>
+      </h3>
+      <p class="hint">Đây là bước quyết định của dự án: 30–50 ảnh thật mới biết
+        bao nhiêu % quảng cáo là nút <b>có chữ</b> (OCR 62ms xử lý) so với
+        <b>icon-only</b> (cần VLM 531ms). Hotkey chụp: ⌃⌥⌘C</p>
+      <div id="cap-counts" class="counts"></div>
+      <div id="cap-grid" class="grid"></div>
+    </div>
+  </section>
+
+  <!-- ⑤ SESSIONS -->
+  <section id="tab-sess" class="tab">
+    <div class="card">
+      <h3>Phiên đã chạy <button id="sess-reload" class="mini">tải lại</button></h3>
+      <div id="sess-list"></div>
+    </div>
+    <div class="card">
+      <h3>events.jsonl</h3>
+      <div id="sess-events" class="log"></div>
+    </div>
+  </section>
+
+  <!-- ⑥ PROBE -->
+  <section id="tab-probe" class="tab">
+    <div class="split">
+      <div class="card">
+        <h3>Chạy cả 3 tầng trên 1 frame</h3>
+        <button id="probe-run" class="ok">Probe</button>
+        <label class="inline"><input type="checkbox" id="probe-vlm" checked> gồm VLM</label>
+        <p class="hint">Trong POC, so ảnh before/after đã lừa 3 lần. Công cụ soi
+          trực quan là bắt buộc, không phải tiện nghi.</p>
+        <div id="probe-result" class="result"></div>
+      </div>
+      <div class="card">
+        <h3>Ảnh + mọi box</h3>
+        <div class="viewport small">
+          <img id="probe-img" alt="probe">
+          <canvas id="probe-canvas"></canvas>
+        </div>
+        <h4>Tap/swipe thử tay</h4>
+        <p class="hint">Bật "tap khi click ảnh" ở Dashboard, hoặc kéo chuột trên
+          ảnh Dashboard để swipe.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ⑦ SETTINGS -->
+  <section id="tab-set" class="tab">
+    <div class="split">
+      <div class="card">
+        <h3>Doctor <button id="doc-reload" class="mini">chạy lại</button></h3>
+        <table class="kv" id="kv-doctor"></table>
+      </div>
+      <div class="card">
+        <h3>Stream</h3>
+        <table class="form">
+          <tr><td>scale</td><td><input id="st-scale" type="number" step="0.05" min="0.25" max="1"></td></tr>
+          <tr><td>quality</td><td><input id="st-quality" type="number" min="30" max="95"></td></tr>
+          <tr><td>fps</td><td><input id="st-fps" type="number" min="1" max="30"></td></tr>
+        </table>
+        <button id="st-save" class="ok mini">Áp dụng</button>
+        <p class="hint">Đo thật: encode 0.56ms/frame. Màn ít chi tiết 15.2KB
+          (3.56 Mbps @30fps); màn thật nhiều chi tiết <b>37.2KB → 7.37 Mbps</b>.
+          Hạ scale xuống 0.75 (~2.2 Mbps) nếu xem qua mạng yếu.</p>
+        <h4>Hotkey</h4>
+        <table class="kv">
+          <tr><th>⌃⌥⌘S</th><td>Start / Pause</td></tr>
+          <tr><th>⌃⌥⌘K</th><td>KILL</td></tr>
+          <tr><th>⌃⌥⌘C</th><td>Chụp frame</td></tr>
+        </table>
+        <h4>MJPEG dự phòng</h4>
+        <p class="hint"><a href="/stream.mjpg" target="_blank">/stream.mjpg</a> —
+          xem trong <code>&lt;img&gt;</code> trần, không cần JS, không có overlay.</p>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

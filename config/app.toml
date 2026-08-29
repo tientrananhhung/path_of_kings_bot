@@ -1,0 +1,34 @@
+# Cấu hình chung.
+# LƯU Ý: lưu từ web UI sẽ ghi lại file này bằng tomli_w và XOÁ HẾT COMMENT.
+# Muốn giữ comment thì sửa tay file này, đừng lưu từ UI.
+
+[window]
+bundle_id = "com.apple.ScreenContinuity"   # iPhone Mirroring — tên app bị localized, đừng dò theo tên
+
+[capture]
+target_fps = 30      # luồng chụp (đo được ~45-48 FPS thực tế)
+ring_size = 60       # số frame giữ lại để replay/debug
+
+[engine]
+tick_fps = 12        # vòng lặp bot
+idle_seconds = 12    # phash không đổi bao lâu thì coi là kẹt
+
+[web]
+host = "127.0.0.1"
+port = 8765
+token = ""           # đặt chuỗi bất kỳ khi chạy --lan
+
+[stream]
+scale = 1.0
+quality = 75
+fps = 30
+
+[safety]
+max_taps_per_min = 90
+max_hold_ms = 250            # > ngưỡng này iOS vào jiggle mode (đã gặp thật)
+max_session_minutes = 240
+max_consecutive_stuck = 5
+forbidden_zones = []         # [[x0,y0,x1,y1], …] theo tỉ lệ cửa sổ
+
+[hotkey]
+enabled = true
