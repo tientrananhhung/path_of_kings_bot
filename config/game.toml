@@ -586,8 +586,8 @@ from = [
     0.786,
 ]
 to = [
-    0.05,
-    0.797,
+    0.95,
+    0.786,
 ]
 duration_ms = 500
 
@@ -1115,6 +1115,175 @@ enters_ad = false
 [rule.when]
 kind = "text"
 contains = "peace was never an option"
+y_min = 0
+y_max = 0
+
+[rule.do]
+action = "tap_text"
+text = "collect"
+dy = 0
+
+[[rule]]
+name = "LUMINARY SET -> Swipe trái (SKIP)"
+enabled = true
+priority = 56
+cooldown_s = 3
+enters_ad = false
+
+[rule.when]
+kind = "text"
+contains = "luminary set"
+y_min = 0
+y_max = 0
+
+[rule.do]
+action = "swipe"
+from = [
+    0.5,
+    0.78,
+]
+to = [
+    0.05,
+    0.78,
+]
+duration_ms = 500
+
+[[rule]]
+name = "HERO DOWN -> Chọn Steal"
+enabled = true
+priority = 57
+cooldown_s = 3
+enters_ad = false
+
+[rule.when]
+kind = "text"
+contains = "hero down"
+y_min = 0
+y_max = 0
+
+[rule.do]
+action = "tap_text"
+text = "steal"
+dy = 0
+
+[[rule]]
+name = "HERO DOWN -> Chọn COLLECT"
+enabled = true
+priority = 58
+cooldown_s = 3
+enters_ad = false
+
+[rule.when]
+kind = "text"
+contains = "hero down"
+y_min = 0
+y_max = 0
+
+[rule.do]
+action = "tap_text"
+text = "collect"
+dy = 0
+
+[[rule]]
+name = "PROTEIN POTIONS -> Chọn Steal"
+enabled = true
+priority = 59
+cooldown_s = 3
+enters_ad = false
+
+[rule.when]
+kind = "text"
+contains = "protein potions"
+y_min = 0
+y_max = 0
+
+[rule.do]
+action = "tap_text"
+text = "steal"
+dy = 0
+
+[[rule]]
+name = "PROTEIN POTIONS -> Chọn COLLECT"
+enabled = true
+priority = 60
+cooldown_s = 3
+enters_ad = false
+
+[rule.when]
+kind = "text"
+contains = "protein potions"
+y_min = 0
+y_max = 0
+
+[rule.do]
+action = "tap_text"
+text = "collect"
+dy = 0
+
+[[rule]]
+name = "ROADSIDE PROPHET -> Chọn Listen"
+enabled = true
+priority = 61
+cooldown_s = 3
+enters_ad = false
+
+[rule.when]
+kind = "text"
+contains = "roadside prophet"
+y_min = 0
+y_max = 0
+
+[rule.do]
+action = "tap_text"
+text = "listen"
+dy = 0
+
+[[rule]]
+name = "ROADSIDE PROPHET -> Chọn COLLECT"
+enabled = true
+priority = 62
+cooldown_s = 3
+enters_ad = false
+
+[rule.when]
+kind = "text"
+contains = "roadside prophet"
+y_min = 0
+y_max = 0
+
+[rule.do]
+action = "tap_text"
+text = "collect"
+dy = 0
+
+[[rule]]
+name = "TINY FAN -> Chọn Help"
+enabled = true
+priority = 63
+cooldown_s = 3
+enters_ad = false
+
+[rule.when]
+kind = "text"
+contains = "tiny fan"
+y_min = 0
+y_max = 0
+
+[rule.do]
+action = "tap_text"
+text = "help"
+dy = 0
+
+[[rule]]
+name = "TINY FAN -> Chọn COLLECT"
+enabled = true
+priority = 64
+cooldown_s = 3
+enters_ad = false
+
+[rule.when]
+kind = "text"
+contains = "tiny fan"
 y_min = 0
 y_max = 0
 

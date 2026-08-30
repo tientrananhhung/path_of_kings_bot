@@ -181,3 +181,36 @@ def test_cú_tap_của_2c_cũng_được_ghi_làm_mẫu(eng):
     assert eng.attempt.pending is not None
     assert eng.attempt.pending["origin"] == "yolo"
     assert eng.attempt.pending["step"] == "2c"
+
+
+def test_KHÔNG_áp_cửa_nền_trống_cho_2c(closer):
+    """Cửa `min_edge_density` đo cho Florence-2 — nó sinh ra để chặn VLM bịa
+    box trên vùng nền trống. Detector tự train không có tật đó.
+
+    Và trên ảnh thật nó KHÔNG tách nổi hai thứ (end-card nền xám phẳng của
+    quảng cáo video):
+
+        nút ▶▶| THẬT   2.52
+        nền tối trống  2.34
+
+    chênh 0.18. Hạ ngưỡng để nhận nút thì nhận luôn nền trống — dùng sai công
+    cụ, không phải sai ngưỡng. Model đã học đúng nút này rồi mà vẫn bị chính
+    cửa lọc của mình vứt đi."""
+    import numpy as np
+    phang = np.full((H, W, 3), 60, np.uint8)          # nền phẳng, mật độ cạnh ~0
+    closer.yolo = YoloGia([cand(cx=376, cy=122, side=28)])
+
+    (c,) = closer.step_yolo(phang, [])
+    assert (c.cx, c.cy) == (376, 122)
+
+
+def test_tầng_C_thì_VẪN_áp_cửa_nền_trống(closer):
+    """Nới cho 2c không được nới cho tầng C."""
+    import numpy as np
+    from pok.perception.types import Candidate
+    phang = np.full((H, W, 3), 60, np.uint8)
+    c = Candidate(cx=376, cy=122, w=28, h=28, label="circle button",
+                  score=1.0, origin="vlm:top")
+
+    assert closer.filter_candidates([c], phang, []) == []
+    assert c.block_reason == "empty_area"
