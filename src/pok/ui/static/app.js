@@ -609,6 +609,9 @@ async function runProbe(target, withVlm, drawToo) {
     <tr><th>OCR</th><td>${r.texts.length} vùng chữ</td></tr>
     <tr><th>bước 2 (OCR keyword)</th><td>${r.ocr_candidates.length} ứng viên qua lọc · ${r.ocr_step_ms}ms</td></tr>
     <tr><th>bước 2b (dò dấu ✕)</th><td>${(r.icon_candidates || []).length} ứng viên qua lọc · ${r.icon_step_ms ?? '—'}ms</td></tr>
+    <tr><th>bước 2c (YOLO)</th><td>${r.yolo?.enabled
+      ? `${(r.yolo_candidates || []).length} ứng viên qua lọc · ${r.yolo_step_ms ?? '—'}ms`
+      : `<span class="hint">tắt — ${esc(r.yolo?.load_error || 'chưa có model')}</span>`}</td></tr>
   </table>`;
 
   if (r.ocr_candidates.length) {
@@ -621,8 +624,13 @@ async function runProbe(target, withVlm, drawToo) {
       <tr><th>label</th><th>origin</th><th>tâm</th><th>kt</th><th>lọc</th><th>chữ quanh</th></tr>
       ${r.icon_candidates.map(cand).join('')}</table>`;
   }
+  if (r.yolo_candidates?.length) {
+    html += `<h4>Bước 2c — detector tự train (quét cả frame)</h4><table>
+      <tr><th>label</th><th>origin</th><th>tâm</th><th>kt</th><th>lọc</th><th>chữ quanh</th></tr>
+      ${r.yolo_candidates.map(cand).join('')}</table>`;
+  }
   if (r.vlm?.length) {
-    html += `<h4>Bước 3 — VLM trên crop góc</h4><table>
+    html += `<h4>Bước 3 — VLM trên dải 25% trên</h4><table>
       <tr><th>góc</th><th>ms</th><th>ứng viên</th><th>chi tiết</th></tr>
       ${r.vlm.map((v) => `<tr><td>${v.corner}</td><td>${v.ms}</td>
         <td>${v.candidates.length}</td>
@@ -661,6 +669,7 @@ function drawProbe(r) {
       ctx.strokeRect((t.cx - t.w / 2) * sx, (t.cy - t.h / 2) * sy, t.w * sx, t.h * sy);
     }
     const all = [...r.ocr_candidates, ...(r.icon_candidates || []),
+      ...(r.yolo_candidates || []),
       ...(r.vlm || []).flatMap((v) => v.candidates)];
     for (const c of all) {
       ctx.strokeStyle = c.blocked ? '#f85149' : '#3fb950';

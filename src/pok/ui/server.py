@@ -28,6 +28,7 @@ from ..core import permissions
 from ..core.capture import high_freq_energy
 from ..perception import cheap, ocr
 from ..perception.classify import classify, keywords_for_classify
+from ..perception.yolo import YoloDetector
 from ..perception.types import ScreenKind
 
 STATIC = Path(__file__).parent / "static"
@@ -138,6 +139,10 @@ def create_app(app_ctx) -> FastAPI:
             ctx.engine.rules.reload(ctx.cfg.game)      # reload nóng
         if section == "ads":
             ctx.engine.closer.cfg = ctx.cfg.ads
+            # đọc config lúc khởi tạo -> phải dựng lại, nếu không đổi đường dẫn
+            # model trong web UI xong phải restart mới ăn
+            ctx.engine.yolo = YoloDetector(ctx.cfg.ads)
+            ctx.engine.closer.yolo = ctx.engine.yolo
         if section == "app":
             # SafetyGuard đọc config lúc khởi tạo -> phải nạp lại, không thì
             # sửa forbidden_zones/rate limit xong vẫn phải restart mới có tác dụng
@@ -244,6 +249,12 @@ def create_app(app_ctx) -> FastAPI:
         icons = ctx.engine.closer.step_icon(bgr, res.texts)
         out["icon_candidates"] = [_cand(c, bgr) for c in icons]
         out["icon_step_ms"] = round((time.perf_counter() - t0) * 1000, 1)
+
+        t0 = time.perf_counter()
+        yolos = ctx.engine.closer.step_yolo(bgr, res.texts)
+        out["yolo_candidates"] = [_cand(c, bgr) for c in yolos]
+        out["yolo_step_ms"] = round((time.perf_counter() - t0) * 1000, 1)
+        out["yolo"] = ctx.engine.yolo.info()
 
         out["vlm"] = []
         if want_vlm and ctx.engine.vlm.enabled:

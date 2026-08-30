@@ -189,6 +189,17 @@ biết chữ nằm đâu, và luật sẽ không bao giờ khớp.
 nếu không lần Lưu kế tiếp từ web UI sẽ xoá sạch chúng.
 Xem [tests/test_rule_vung_doc.py](tests/test_rule_vung_doc.py).
 
+### `download`/`install` sát mép — bắt quảng cáo playable
+
+Quảng cáo **playable** trượt cả bốn cửa còn lại của `classify`: không keyword đóng, không
+dấu ✕ (nút đóng là `▶▶|`), không đủ hint App Store, `hf` bình thường → rơi vào nhánh mặc
+định `GAME`. Bot tưởng đang chơi game và đứng im 187 giây
+(`data/sessions/20260830-111459`).
+
+Tín hiệu cứu được ca này là **icon app kèm nhãn `Download` ở góc trên trái** — khung chuẩn
+của mọi playable. Đo trên 30 ảnh `data/captures`: `download`/`install` xuất hiện ở **0 màn
+game, 2 màn quảng cáo**. Game không có nút tải app nào nên rủi ro rất thấp.
+
 ### Dấu ✕ sát mép — bằng chứng phân loại thứ ba
 
 Rất nhiều quảng cáo **không có chữ nào** để bắt: nút đóng vẽ bằng đồ hoạ, OCR đọc ra
@@ -229,6 +240,49 @@ Bỏ qua chuyện này là bug đã gặp thật (phiên `data/sessions/20260828
 Nay `blind_tap.at` là rel theo **màn hình thật**, `blind_points()` lo quy đổi sang rel cửa
 sổ cho `Actuator`, và blind tap **cũng phải qua cửa blocklist** — nó là điểm đoán, không
 có gì bảo đảm dưới nó không phải nút Install.
+
+### Bước 2c — detector tự train
+
+`data/models/roboflow_v1.pt` — YOLOv8n, 3.0M tham số, 30 epoch, 6 class. Vị trí: giữa 2b và
+tầng C. Đo thật trên máy này:
+
+| | |
+|---|---|
+| latency | **18ms** trung vị (MPS) — rẻ hơn tầng C 33 lần |
+| dương tính giả | **0** trên 30 màn game |
+| **độ phủ** | **1/7** fixture quảng cáo · **2/29** ảnh `data/captures` |
+
+Nó gần như không thấy gì. Nhưng hai lần hiếm hoi nó thấy thì **đều trúng**: (372,66) và
+(369,93), lệch 2pt so với hai dấu ✕ thật — và cả hai lần **gán nhãn `normal_arrow`**.
+
+**Định vị đã học được, phân loại thì chưa.** Vì vậy `classes = []` trong config (nhận mọi
+class): lọc theo class sẽ vứt đi đúng hai lần nó làm được việc.
+
+**Nó KHÔNG thay được bước 2b**: `close_icon` tìm ra 8/8 dấu ✕, YOLO tìm ra 2. Bước 2c hiện
+là "thêm một cơ hội", không phải tầng chính. Cần thêm dữ liệu — `SampleWriter` đang thu.
+
+File `.pt` nằm trong `data/` nên **không lên git**; máy khác clone về sẽ tự chạy ở chế độ
+không có 2c (`enabled` kiểm tra cả file có tồn tại không).
+
+`ultralytics` đòi `opencv-python` trong khi dự án dùng `opencv-python-headless` cùng
+version — hai gói ghi đè nhau, nên cài bằng `--no-deps` (xem `pyproject.toml`). Nó **không**
+đụng torch 2.13 / transformers 5.16.
+
+| bước | bản chất | chi phí |
+|---|---|---|
+| 2b `close_icon` | luật **viết tay** cho ĐÚNG MỘT hình (dấu ✕) | 7ms |
+| **2c YOLO** | luật **tự học** cho nhiều hình | ~20ms (chờ đo) |
+| 3 Florence-2 | model tả ảnh đời thường, không biết UI | 600ms · 43% |
+
+Ứng viên 2c đi qua **đủ** cửa lọc như mọi tầng khác — không miễn trừ chỉ vì "model của
+mình". Riêng `_gate_side` [20,50] **không** áp: khoảng đó đo cho Florence-2 trên crop góc
+130×130, mượn sang detector khác là chặn oan dấu ✕ thật 14×14.
+
+Xem [tests/test_yolo_buoc_2c.py](tests/test_yolo_buoc_2c.py).
+
+**Lưu ý về tài liệu cũ**: `PLAN.md` ghi *"YOLOv8 — bỏ hoàn toàn"* và `plan_bot.md` có code
+mẫu YOLO. Đó là bỏ YOLO cho **combat** (nhận diện quái) — đúng, không làm lại. Bước 2c là
+việc khác hẳn: tìm nút đóng quảng cáo.
 
 ### Tầng C — một lần quét dải 25% trên cùng, prompt `"circle button"`
 
@@ -286,20 +340,56 @@ Hiếm, nhưng đừng coi tập này là nhãn vàng; liếc qua trước khi t
 Tắt bằng `ads.collect_samples = false`. Xem
 [tests/test_xac_nhan_tap.py](tests/test_xac_nhan_tap.py).
 
-### `min_watch_seconds` là TRẦN, không phải giấc ngủ
+### Ngân sách thời gian cho một quảng cáo
 
-`AD_WATCHING` ngồi xem tối đa **120s**, nhưng thoát **ngay** khi có bằng chứng đã về màn
-game (`_back_to_game`, dùng chung với `AD_CLOSING`).
+| tham số | giá trị | nghĩa là gì |
+|---|---|---|
+| `min_watch_seconds` | **8s** | chờ SAU KHI quảng cáo đã hiện, rồi mới bắt đầu tìm nút đóng |
+| `no_ad_grace_s` | **5s** | màn hình không đổi sau ngần này → chẳng có quảng cáo nào, về game |
+| `rescan_max_s` | **120s** | **trần TỔNG**: quét tối đa ngần này rồi mới escalate (vuốt Home) |
+| `retry_after_s` | **15s** | tap không ăn thì chờ ngần này rồi được tap lại chỗ cũ |
+| `TIMEOUTS[AD_CLOSING]` | **210s** | phải > `rescan_max_s` + `countdown_max_wait_s` |
 
-Vì sao trần phải dài — phiên `data/sessions/20260830-081318`: chờ đúng 5 giây rồi vào quét
-trong khi quảng cáo **còn đang tải** (OCR ra 4 chữ). Bước 3 tap ứng viên VLM ở
+Quảng cáo có thể dài tới 120 giây, nên **đừng bỏ cuộc sớm hơn thế** — nhưng cũng đừng ngồi
+chờ 120 giây trước khi thử. Hai chuyện khác nhau: `min_watch_seconds` là lúc **bắt đầu**,
+`rescan_max_s` là lúc **bỏ cuộc**.
+
+`retry_after_s` là mảnh ghép làm cho việc quét sớm an toàn: nút đóng lúc đầu thường **đang
+tắt**, quanh nó là vòng tròn đếm giờ. Tap lúc đó không ăn. Nếu `already_tried` cấm vĩnh viễn
+thì đúng cái nút thật bị loại khỏi danh sách mãi mãi, kể cả sau khi nó sáng lên.
+
+`AD_WATCHING` cũng thoát **ngay** khi có bằng chứng đã về màn game (`_back_to_game`, dùng
+chung với `AD_CLOSING`).
+
+Vì sao không quét ngay ở giây thứ 5 — phiên `data/sessions/20260830-081318`: quét lúc đó,
+quảng cáo **còn đang tải** (OCR ra 4 chữ). Bước 3 tap ứng viên VLM ở
 rel (0.906, 0.150) → **mở thẳng App Store**, kẹt 45 giây, phải escalate + 5 cú vuốt Home.
 Một cú tap sớm tốn **60 giây**.
 
 Nhiều quảng cáo hiện nút đóng **ngay** nhưng đang tắt, quanh nó là vòng tròn đếm giờ. Vòng
-tròn là **đồ hoạ**, `countdown_left()` đọc chữ nên không thấy — chờ đủ lâu là cách duy nhất
-hiện có. `TIMEOUTS[AD_WATCHING]` (150s) **phải lớn hơn** `min_watch_seconds`, nếu không
-STUCK cắt ngang. Xem [tests/test_ad_watching_tran.py](tests/test_ad_watching_tran.py).
+tròn là **đồ hoạ**, `countdown_left()` đọc chữ nên không thấy — `retry_after_s` là cách xử lý:
+cứ tap, không ăn thì 15 giây sau tap lại, tới khi nút sáng. `TIMEOUTS[AD_WATCHING]` (150s) **phải lớn hơn** `min_watch_seconds`, nếu không
+STUCK cắt ngang.
+
+**Nhưng phải RỜI được màn game trước đã.** Bằng chứng "có luật tầng A khớp" đúng ở **cả hai
+phía**: trước khi quảng cáo kịp hiện, và sau khi đã đóng xong. Bug đã gặp
+(`data/sessions/20260830-111459`): luật `enters_ad` bắn lúc 6.3s, **0.2 giây sau** bot kết
+luận "quảng cáo đã đóng" và về `GAME_PLAY` — màn hình lúc đó vẫn là dialog UPGRADE, nên
+chính cái luật vừa mở quảng cáo lại thành bằng chứng đã về game. Quảng cáo hiện lên sau đó,
+`classify` trả `GAME` (playable: không ✕, không keyword) → không còn đường nào quay lại
+`AD_CLOSING`. **Bot đứng im 187 giây.**
+
+Nay `_state_ad_watching` ghi `_ad_entry_hash` ở tick đầu và chỉ nhận bằng chứng về-game sau
+khi phash đã lệch quá `STALE_PHASH_DIST`. Màn hình không đổi sau `ads.no_ad_grace_s` (5s)
+→ kết luận **không có quảng cáo nào** và về `GAME_PLAY` luôn.
+
+**Nhưng cửa grace đó chỉ áp khi `classify` KHÔNG nói AD.** Bug đã gặp
+(`data/sessions/20260830-154455`): quảng cáo end-card nền đen, ảnh **tĩnh**, có ✕ rõ ở
+(372,126). Vào `AD_WATCHING` vì classify ra AD, nhưng phash không bao giờ đổi → grace kết
+luận "không có quảng cáo nào" → `GAME_PLAY` → classify lại ra AD → vào lại. Vòng lặp 5
+giây/lần, không bao giờ tới `AD_CLOSING` (cần 8s) nên không bao giờ tap được dấu ✕ nằm ngay
+đó. `classify == AD` **tự nó** đã là bằng chứng đang ở trong quảng cáo.
+Xem [tests/test_ad_watching_tran.py](tests/test_ad_watching_tran.py).
 
 ### Đã bỏ: blind tap
 

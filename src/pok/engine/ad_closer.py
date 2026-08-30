@@ -37,7 +37,11 @@ class AdAttempt:
     wait_tick: float = 0.0           # tick chờ gần nhất, để cộng waiting_s
     said_wait: str = ""              # để log một lần mỗi mốc, khỏi spam
     step: int = 0
-    tried_points: list[tuple[float, float]] = field(default_factory=list)
+    # (rel_x, rel_y, lúc tap). CÓ mốc thời gian vì nút đóng lúc đầu thường
+    # đang TẮT (vành tròn đếm giờ chạy quanh nó). Tap lúc đó không ăn, nhưng
+    # nếu ghi vĩnh viễn là "đã thử" thì đúng cái nút thật sẽ bị loại mãi mãi,
+    # kể cả sau khi nó sáng lên.
+    tried_points: list[tuple[float, float, float]] = field(default_factory=list)
     last_scan: float = 0.0
     candidates: list[Candidate] = field(default_factory=list)
     # Cú tap vừa bắn, đang chờ xem có ăn không. Giữ luôn frame NGAY TRƯỚC lúc
@@ -58,9 +62,10 @@ class AdAttempt:
 
 
 class AdCloser:
-    def __init__(self, ads_cfg: dict, vlm, bus):
+    def __init__(self, ads_cfg: dict, vlm, bus, yolo=None):
         self.cfg = ads_cfg
         self.vlm = vlm
+        self.yolo = yolo
         self.bus = bus
 
     # ------------------------------------------------------------ lọc
@@ -265,6 +270,22 @@ class AdCloser:
         # in_crop=False -> cửa hình học (dải mép) được áp dụng
         return self.filter_candidates(cands, bgr, texts)
 
+    # ------------------------------------------ bước 2c: detector tự train
+    def step_yolo(self, bgr: np.ndarray, texts: list[TextBox]) -> list[Candidate]:
+        """Detector tự train, quét cả frame. Rỗng nếu chưa có model.
+
+        Đi qua ĐỦ cửa lọc như mọi tầng khác. Không được miễn trừ chỉ vì nó
+        được train trên dữ liệu của chính mình: chừng nào chưa có số đo thì nó
+        vẫn là model đoán, và cửa lọc là thứ duy nhất từng chặn được việc bot
+        tap vào nút Install.
+
+        KHÔNG áp `side_range`: khoảng [20,50] đo riêng cho Florence-2 trên crop
+        góc, không có cơ sở nào để áp cho detector khác.
+        """
+        if self.yolo is None:
+            return []
+        return self.filter_candidates(self.yolo.detect(bgr), bgr, texts)
+
     # --------------------------------- bước 3: VLM trên dải 25% trên cùng
     def step_vlm_top(self, bgr: np.ndarray,
                      texts: list[TextBox]) -> list[Candidate]:
@@ -300,7 +321,18 @@ class AdCloser:
     # ------------------------------------------------------------ tiện ích
     def already_tried(self, attempt: AdAttempt, rel: tuple[float, float],
                       tol: float = 0.05) -> bool:
-        """Tap thất bại thì đừng tap lại đúng chỗ đó."""
+        """Vừa tap chỗ này mà không ăn thì đừng tap lại NGAY — nhưng được tap
+        lại sau `retry_after_s`.
+
+        Vì sao không cấm vĩnh viễn: rất nhiều quảng cáo hiện nút đóng ngay từ
+        đầu nhưng đang TẮT, quanh nó là vòng tròn đếm giờ. Tap lúc đó không ăn.
+        Nếu ghi vĩnh viễn là "đã thử" thì đúng cái nút thật bị loại khỏi danh
+        sách mãi mãi, kể cả sau khi nó sáng lên — và bot sẽ escalate về Home
+        trong khi nút đóng nằm ngay đó.
+        """
+        han = float(self.cfg.get("retry_after_s", 15.0))
+        now = time.time()
         return any(abs(rel[0] - p[0]) < tol and abs(rel[1] - p[1]) < tol
+                   and now - p[2] < han
                    for p in attempt.tried_points)
 

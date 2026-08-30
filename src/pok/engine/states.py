@@ -25,10 +25,11 @@ TIMEOUTS: dict[BotState, float] = {
     BotState.DISCONNECTED: 120.0,
     BotState.HOME_SCREEN: 30.0,
     BotState.REWARD_PROMPT: 15.0,
-    # phải LỚN HƠN ads.min_watch_seconds (120s), nếu không STUCK cắt ngang
-    # đúng lúc đang ngồi xem cho hết quảng cáo
-    BotState.AD_WATCHING: 150.0,
-    BotState.AD_CLOSING: 120.0,
+    # phải lớn hơn ads.min_watch_seconds (8s) + no_ad_grace_s
+    BotState.AD_WATCHING: 60.0,
+    # phải lớn hơn ads.rescan_max_s (120s) + countdown_max_wait_s (75s),
+    # nếu không STUCK cắt ngang giữa lúc đang quét
+    BotState.AD_CLOSING: 210.0,
     BotState.AD_ESCAPED: 60.0,
     BotState.STUCK: 30.0,
 }

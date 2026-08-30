@@ -5,3 +5,6 @@ data/
 poc/out/
 .DS_Store
 .pytest_cache/
+runs/
+.venv-train/
+*.pt
