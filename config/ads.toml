@@ -146,9 +146,13 @@ vlm_band_top      = 0.25
 # train, đừng cài trước.
 [yolo]
 enabled = true
-model   = "data/models/roboflow_v1.pt"
-conf    = 0.25
-imgsz   = 640
+model   = "data/models/close_button_v2.pt"
+conf    = 0.30
+# PHẢI khớp imgsz lúc train (poc/train_yolo.py). Ảnh 410x898 mà nút chỉ 14x14:
+# ở 640 letterbox co xuống ~10px, sát ngưỡng nhìn thấy của đầu ra P3. Ở 960
+# thành ~15px. Model cũ train ở 640 chỉ tìm ra 2/29 ảnh; model mới ở 960 tìm
+# 20/20 trên tập train và 3/4 trên tập val, 0 dương tính giả trên 22 màn game.
+imgsz   = 960
 device  = "mps"
 # Class nào được coi là nút đóng. RỖNG = nhận mọi class.
 #

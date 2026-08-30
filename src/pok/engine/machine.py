@@ -662,44 +662,56 @@ class BotEngine:
             return
         a.last_scan = now
 
+        # Các bước tìm nút, xếp theo ĐỘ TIN CẬY giảm dần. Tầng nào ra ứng viên
+        # dùng được thì tap rồi dừng.
+        #
+        # QUAN TRỌNG: tầng nào có ứng viên nhưng đang trong cửa `retry_after_s`
+        # thì DỪNG luôn, không rơi xuống tầng yếu hơn. "Đang chờ tap lại" khác
+        # hẳn "không tìm thấy" — chờ thì phải chờ, chứ đi thử thứ kém tin cậy
+        # hơn là đi ngược.
+        #
+        # Bug đã gặp (phiên 20260830-170024, kẹt 60 giây trên sheet App Store):
+        #   2b tìm đúng ✕ ở (46,145) -> tap -> điểm đó vào cooldown 15s
+        #   chu kỳ sau: 2b bị bỏ qua -> RƠI XUỐNG tầng 3
+        #   tầng 3 tap 'circle button' (364,145) = nút SHARE -> mở sheet chia sẻ
+        #   chu kỳ sau: 2b tap ✕ -> đóng sheet chia sẻ, về lại App Store
+        #   ✕ lại vào cooldown -> lại rơi xuống tầng 3 -> lại tap share...
+        def thu(cands, buoc: str, nhan) -> str:
+            """'tap' | 'cho' (có ứng viên nhưng đang chờ tap lại) | 'khong'."""
+            co = False
+            for c in cands:
+                rel = (c.cx / w, c.cy / h)
+                if self.closer.already_tried(a, rel):
+                    co = True
+                    continue
+                a.tried_points.append((*rel, time.time()))
+                self._note_tap(a, bgr, c, buoc, nhan(c))
+                self.act.tap(rel, win, source="ad_step",
+                             label=f"bước {buoc} {nhan(c)}", frame_id=fid)
+                return "tap"
+            return "cho" if co else "khong"
+
         # --- bước 2: OCR keyword ---
         a.step = 2
-        for c in self.closer.step_ocr(bgr, res.texts):
-            rel = (c.cx / w, c.cy / h)
-            if self.closer.already_tried(a, rel):
-                continue
-            a.tried_points.append((*rel, time.time()))
-            self._note_tap(a, bgr, c, "2", f"OCR '{c.label}'")
-            self.act.tap(rel, win, source="ad_step",
-                         label=f"bước 2 OCR '{c.label}'", frame_id=fid)
+        kq = thu(self.closer.step_ocr(bgr, res.texts), "2",
+                 lambda c: f"OCR '{c.label}'")
+        if kq != "khong":
             return
 
-        # --- bước 2b: dò dấu ✕ bằng OpenCV, cả 4 góc, < 5ms ---
+        # --- bước 2b: dò dấu ✕ bằng OpenCV, quét cả frame, < 5ms ---
         a.step = 22       # 22 = "bước 2b" trong thống kê closed_by_step
-        for c in self.closer.step_icon(bgr, res.texts):
-            rel = (c.cx / w, c.cy / h)
-            if self.closer.already_tried(a, rel):
-                continue
-            a.tried_points.append((*rel, time.time()))
-            self._note_tap(a, bgr, c, "2b", f"✕ điểm={c.score}")
-            self.act.tap(rel, win, source="ad_step",
-                         label=f"bước 2b ✕ {c.origin} điểm={c.score}",
-                         frame_id=fid)
+        kq = thu(self.closer.step_icon(bgr, res.texts), "2b",
+                 lambda c: f"✕ {c.origin} điểm={c.score}")
+        if kq != "khong":
             return
 
         # --- bước 2c: detector tự train, cả frame, ~20ms ---
         # Đứng TRƯỚC tầng C vì rẻ hơn 30 lần. Chưa có model thì trả rỗng và rơi
         # thẳng xuống dưới, pipeline chạy y như trước.
         a.step = 23       # 23 = "bước 2c" trong thống kê closed_by_step
-        for c in self.closer.step_yolo(bgr, res.texts):
-            rel = (c.cx / w, c.cy / h)
-            if self.closer.already_tried(a, rel):
-                continue
-            a.tried_points.append((*rel, time.time()))
-            self._note_tap(a, bgr, c, "2c", f"{c.label} {c.score:.2f}")
-            self.act.tap(rel, win, source="ad_step",
-                         label=f"bước 2c YOLO '{c.label}' {c.score:.2f}",
-                         frame_id=fid)
+        kq = thu(self.closer.step_yolo(bgr, res.texts), "2c",
+                 lambda c: f"YOLO '{c.label}' {c.score:.2f}")
+        if kq != "khong":
             return
 
         # --- bước 3: VLM trên DẢI 25% TRÊN CÙNG (không còn quét 4 góc) ---
@@ -711,15 +723,8 @@ class BotEngine:
             if job.error:
                 self.bus.log("warn", f"VLM lỗi: {job.error}")
                 return
-            for c in (job.result or []):
-                rel = (c.cx / w, c.cy / h)
-                if self.closer.already_tried(a, rel):
-                    continue
-                a.tried_points.append((*rel, time.time()))
-                self._note_tap(a, bgr, c, "3", c.label)
-                self.act.tap(rel, win, source="ad_step",
-                             label=f"bước 3 VLM dải trên ({job.ms:.0f}ms)",
-                             frame_id=fid)
+            if thu(job.result or [], "3",
+                   lambda c: f"VLM dải trên ({job.ms:.0f}ms)") != "khong":
                 return
 
         # --- bước 4: quét lại tới hết thời gian ---

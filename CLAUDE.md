@@ -243,23 +243,47 @@ có gì bảo đảm dưới nó không phải nút Install.
 
 ### Bước 2c — detector tự train
 
-`data/models/roboflow_v1.pt` — YOLOv8n, 3.0M tham số, 30 epoch, 6 class. Vị trí: giữa 2b và
-tầng C. Đo thật trên máy này:
+`data/models/close_button_v2.pt` — YOLOv8n fine-tune từ `roboflow_v1.pt`, **imgsz 960**,
+47 ảnh. Vị trí: giữa 2b và tầng C, vì rẻ hơn tầng C ~26 lần.
 
 | | |
 |---|---|
-| latency | **18ms** trung vị (MPS) — rẻ hơn tầng C 33 lần |
-| dương tính giả | **0** trên 30 màn game |
-| **độ phủ** | **1/7** fixture quảng cáo · **2/29** ảnh `data/captures` |
+| latency | **23ms** @ imgsz 960 |
+| train (38 ảnh) | trúng **20/20**, dương tính giả **0** |
+| val (9 ảnh) | trúng 3/4, dương tính giả **0** |
 
-Nó gần như không thấy gì. Nhưng hai lần hiếm hoi nó thấy thì **đều trúng**: (372,66) và
-(369,93), lệch 2pt so với hai dấu ✕ thật — và cả hai lần **gán nhãn `normal_arrow`**.
+**`imgsz` phải khớp lúc train.** Ảnh 410×898 mà nút chỉ 14×14: ở 640 letterbox co xuống
+~10px, sát ngưỡng nhìn thấy của đầu ra P3 (stride 8); ở 960 thành ~15px. Model đầu tiên
+(`roboflow_v1.pt`, train ở 640) chỉ tìm ra **2/29** ảnh — gần như mù. Cùng dữ liệu, chuyển
+sang 960 thì thành 20/20.
 
-**Định vị đã học được, phân loại thì chưa.** Vì vậy `classes = []` trong config (nhận mọi
-class): lọc theo class sẽ vứt đi đúng hai lần nó làm được việc.
+Nó làm được thứ tầng C làm sai: trên sheet App Store (hai nút ở đỉnh — ✕ bên trái, **share**
+bên phải), YOLO chọn đúng ✕ (46,145) còn Florence-2 chọn nút share (364,145).
 
-**Nó KHÔNG thay được bước 2b**: `close_icon` tìm ra 8/8 dấu ✕, YOLO tìm ra 2. Bước 2c hiện
-là "thêm một cơ hội", không phải tầng chính. Cần thêm dữ liệu — `SampleWriter` đang thu.
+Ứng viên 2c đi qua **đủ** cửa lọc như mọi tầng khác. Riêng `_gate_side` [20,50] **không**
+áp: khoảng đó đo cho Florence-2 trên crop góc 130×130, mượn sang detector khác là chặn oan
+dấu ✕ thật 14×14.
+
+#### Vòng lặp dữ liệu
+
+    bot chạy -> data/samples/ (SampleWriter ghi hit/miss)
+             -> poc/build_yolo_dataset.py
+             -> poc/train_yolo.py  -> data/models/close_button_v2.pt
+
+Mỗi lần train là train **TOÀN BỘ** dữ liệu, và luôn xuất phát lại từ `roboflow_v1.pt`.
+Không train tiếp chỉ bằng ảnh mới: mạng nơ-ron sẽ quên sạch phần cũ. Không nối tiếp từ bản
+trước: mỗi vòng sẽ chồng thêm một lớp lệch không tách ra được, và kết quả hết tái lập.
+
+**Phải liếc qua tập mẫu trước khi train.** `hit` là bằng chứng gián tiếp và đã sinh ra 3
+nhãn sai thật: hai lần VLM chỉ vào **nút bánh răng của game** ở (44,86), bot tap, quảng cáo
+tự tắt ngay sau nên bị ghi là trúng; một lần `close_icon` bắt nhầm **chữ X trong
+"LOST EXPLORER"**. Cả ba nay nằm trong `CHAC_CHAN_LA_GAME` của
+[poc/build_yolo_dataset.py](poc/build_yolo_dataset.py) và được dùng làm **nhãn âm** — nhãn
+âm khó, quý hơn ảnh game thường.
+
+Class hiếm phải nằm trong tập **train**: nút `▶▶`/`>>` chỉ có đúng MỘT mẫu, lần train đầu
+nó rơi vào val nên model không học được gì từ nó (20/20 train nhưng sót đúng cái đó).
+Không đo được nó còn hơn không học được nó.
 
 File `.pt` nằm trong `data/` nên **không lên git**; máy khác clone về sẽ tự chạy ở chế độ
 không có 2c (`enabled` kiểm tra cả file có tồn tại không).
@@ -268,21 +292,7 @@ không có 2c (`enabled` kiểm tra cả file có tồn tại không).
 version — hai gói ghi đè nhau, nên cài bằng `--no-deps` (xem `pyproject.toml`). Nó **không**
 đụng torch 2.13 / transformers 5.16.
 
-| bước | bản chất | chi phí |
-|---|---|---|
-| 2b `close_icon` | luật **viết tay** cho ĐÚNG MỘT hình (dấu ✕) | 7ms |
-| **2c YOLO** | luật **tự học** cho nhiều hình | ~20ms (chờ đo) |
-| 3 Florence-2 | model tả ảnh đời thường, không biết UI | 600ms · 43% |
-
-Ứng viên 2c đi qua **đủ** cửa lọc như mọi tầng khác — không miễn trừ chỉ vì "model của
-mình". Riêng `_gate_side` [20,50] **không** áp: khoảng đó đo cho Florence-2 trên crop góc
-130×130, mượn sang detector khác là chặn oan dấu ✕ thật 14×14.
-
 Xem [tests/test_yolo_buoc_2c.py](tests/test_yolo_buoc_2c.py).
-
-**Lưu ý về tài liệu cũ**: `PLAN.md` ghi *"YOLOv8 — bỏ hoàn toàn"* và `plan_bot.md` có code
-mẫu YOLO. Đó là bỏ YOLO cho **combat** (nhận diện quái) — đúng, không làm lại. Bước 2c là
-việc khác hẳn: tìm nút đóng quảng cáo.
 
 ### Tầng C — một lần quét dải 25% trên cùng, prompt `"circle button"`
 
@@ -307,6 +317,24 @@ thì nó nhìn ra, tả chức năng thì không. Giá phải trả: nó cũng c
 Cảnh báo: ngưỡng `_gate_side` **[20,50]** được đo dưới chế độ CŨ (2 prompt, crop góc
 130×130). Dưới chế độ mới, nút thật đo được là 26×28, 30×34 và **một ✕ thật 18×18 bị chặn**
 vì dưới ngưỡng 20. Ca đó tầng 2b vẫn bắt được nên chưa mất gì, nhưng ngưỡng này đáng đo lại.
+
+### Đang chờ tap lại ≠ không tìm thấy
+
+Bốn bước tìm nút xếp theo độ tin cậy giảm dần (2 → 2b → 2c → 3). Tầng nào có ứng viên
+nhưng đang trong cửa `retry_after_s` thì **dừng luôn**, không rơi xuống tầng yếu hơn.
+
+Bug đã gặp (`data/sessions/20260830-170024`, kẹt 60 giây trên sheet App Store). Sheet đó
+có **hai** nút ở đỉnh: ✕ đóng bên trái (46,145) và nút **share** bên phải (364,145).
+
+    2b tìm đúng ✕ (46,145) 18×18 → tap → điểm vào cooldown 15s
+    chu kỳ sau: 2b bị `already_tried` bỏ qua → RƠI XUỐNG tầng 3
+    tầng 3 tap `circle button` (364,145) 47×48 = nút SHARE → mở sheet chia sẻ
+    chu kỳ sau: 2b tap ✕ → đóng sheet chia sẻ, quay lại App Store
+    ✕ lại vào cooldown → lại rơi xuống tầng 3 → lại tap share… vô tận
+
+Nút share 47×48 lọt cửa `_gate_side` [20,50] một cách hợp lệ — không siết ngưỡng nào cứu
+được. Gốc rễ là **"đang chờ tap lại" bị đối xử y như "không tìm thấy"**. Xem
+[tests/test_cooldown_khong_tut_tang.py](tests/test_cooldown_khong_tut_tang.py).
 
 ### Xác nhận tap — và bot tự gán nhãn cho chính nó
 
