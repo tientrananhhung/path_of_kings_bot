@@ -50,6 +50,7 @@ from pathlib import Path
 
 import numpy as np
 
+from ..config import ROOT
 from .types import Candidate
 
 
@@ -57,7 +58,11 @@ class YoloDetector:
     def __init__(self, cfg: dict):
         y = cfg.get("yolo", {}) or {}
         self.want = bool(y.get("enabled", False))
-        self.model_path = str(y.get("model", "")).strip()
+        # Đường dẫn tương đối tính từ GỐC DỰ ÁN, không phải thư mục đang đứng.
+        # Nếu không thì `pok ui` chạy từ chỗ khác sẽ không thấy model, và bước
+        # 2c im lặng tự tắt — kiểu hỏng khó nhận ra nhất.
+        mp = str(y.get("model", "")).strip()
+        self.model_path = str(ROOT / mp) if mp and not Path(mp).is_absolute() else mp
         self.conf = float(y.get("conf", 0.35))
         self.imgsz = int(y.get("imgsz", 640))
         self.device = str(y.get("device", "mps"))

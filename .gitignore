@@ -1,10 +1,23 @@
 .venv/
+.venv-train/
 __pycache__/
 *.egg-info/
-data/
-poc/out/
-.DS_Store
 .pytest_cache/
+.DS_Store
+
+# Bỏ qua MỌI THỨ trong data/ — ảnh chụp, phiên chạy, mẫu huấn luyện, dataset...
+data/*
+# ...TRỪ model của bước 2c: phải lên git để nơi khác clone về là chạy được ngay,
+# không phải train lại. 6MB/file — chấp nhận được, nhưng mỗi lần train lại rồi
+# commit là repo phình thêm 6MB vĩnh viễn; train nhiều thì cân nhắc Git LFS.
+#
+# Phải viết `data/*` chứ KHÔNG phải `data/`: git không đi vào thư mục đã bị
+# loại, nên một dòng `!data/models/*.pt` đặt sau `data/` sẽ vô tác dụng.
+!data/models/
+data/models/*
+!data/models/*.pt
+
+poc/out/
 runs/
-.venv-train/
-*.pt
+# trọng số gốc ultralytics tự tải về khi train, không phải của dự án
+/yolov8n.pt

@@ -12,7 +12,8 @@ chiếm chuột vật lý của Mac.
 ## Cài đặt
 
 ```bash
-cd "/Users/tientran/Tong Hop/path_of_kings_tool"
+git clone https://github.com/tientrananhhung/path_of_kings_bot.git
+cd path_of_kings_bot
 python3.11 -m venv .venv
 ./.venv/bin/pip install -e ".[vlm,dev]"
 ```
@@ -21,6 +22,24 @@ python3.11 -m venv .venv
 (khi đó đặt `vlm.enabled = false` trong `config/ads.toml`).
 
 Weights Florence-2 (~450MB) tự tải lần đầu vào `~/.cache/huggingface/hub/`.
+
+### Bước 2c — detector YOLO (tuỳ chọn)
+
+Model đã nằm sẵn trong repo (`data/models/close_button_v2.pt`), chỉ thiếu thư viện:
+
+```bash
+./.venv/bin/pip install --no-deps ultralytics ultralytics-thop ultralytics-platform
+./.venv/bin/pip install matplotlib polars psutil requests nvidia-ml-py
+```
+
+Cài bằng `--no-deps` là **cố ý**: `ultralytics` đòi `opencv-python` trong khi dự án
+dùng `opencv-python-headless` cùng version — hai gói ghi đè lên nhau. Nó không
+đụng tới torch/transformers của Florence-2.
+
+Không cài thì bước 2c tự bỏ qua, pipeline chạy bình thường — bot vẫn đóng được
+quảng cáo bằng tầng 2b và tầng C, chỉ chậm hơn ở vài ca.
+
+`ultralytics` là **AGPL-3.0**, nên nó là extra chứ không phải phụ thuộc bắt buộc.
 
 ## Cấp quyền — bắt buộc, làm một lần
 
