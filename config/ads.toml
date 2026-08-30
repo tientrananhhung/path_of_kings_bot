@@ -13,7 +13,19 @@ rescan_interval_s = 2.0
 rescan_max_s      = 45.0
 edge_band_pct     = 0.15    # cửa hình học: tâm phải nằm trong dải này
 max_area_pct      = 0.04    # cửa kích thước
-confirm_delay_s   = 1.2     # chờ bao lâu rồi xác nhận tap có ăn
+# Chờ bao lâu sau cú tap rồi mới kết luận nó có ăn không.
+# Về được màn game trong cửa sổ này -> `hit`. Hết cửa sổ mà phash y nguyên ->
+# `miss`. Màn đổi nhưng vẫn ở quảng cáo -> không kết luận, bỏ qua.
+# Đây là thứ DUY NHẤT đo được tầng nào đang gánh việc: `closed_by_step` chỉ ghi
+# "lúc phát hiện đã về game thì đang ở bước mấy", nên quảng cáo tự tắt trong
+# lúc VLM chạy cũng được tính cho VLM.
+confirm_delay_s   = 1.2
+
+# Ghi mẫu huấn luyện vào data/samples/ mỗi lần xác nhận được hit/miss:
+# ảnh frame NGAY TRƯỚC lúc tap + khung ứng viên + kết cục. Bot tự gán nhãn cho
+# chính nó, không ai phải ngồi khoanh tay từng tấm. PNG 410x898 tốn 7ms/tấm,
+# nhiều nhất một tấm mỗi 2 giây.
+collect_samples   = true
 
 # Bước 2b — dò dấu ✕ bằng OpenCV, quét CẢ FRAME (6-16ms), chạy TRƯỚC VLM.
 # Không dùng crop góc: đo thật trên tấm App Store sheet, ✕ ở (46,145) — y=145

@@ -18,6 +18,12 @@ class SessionStats:
     ads_seen: int = 0
     ads_closed: int = 0
     ads_failed: int = 0
+    # Tap có ăn không — đo bằng `confirm_delay_s`, KHÔNG suy từ closed_by_step.
+    # `closed_by_step` chỉ ghi "lúc phát hiện đã về game thì đang ở bước mấy",
+    # nên quảng cáo tự tắt trong lúc VLM chạy cũng được tính cho VLM.
+    taps_hit: int = 0
+    taps_miss: int = 0
+    hit_by_origin: dict[str, dict] = field(default_factory=dict)
     closed_by_step: dict[str, int] = field(default_factory=dict)
     block_reasons: dict[str, int] = field(default_factory=dict)
     stuck: int = 0
@@ -27,6 +33,20 @@ class SessionStats:
     def note_close(self, step: str) -> None:
         self.ads_closed += 1
         self.closed_by_step[step] = self.closed_by_step.get(step, 0) + 1
+
+    def note_tap(self, origin: str, hit: bool) -> None:
+        """Ghi kết quả THẬT của một cú tap, tách theo nguồn ứng viên.
+
+        Đây là thứ duy nhất trả lời được "tầng nào đang gánh việc": ocr / icon
+        (tầng 2b) / vlm:top (tầng C). Không có nó thì mọi so sánh giữa các tầng
+        đều là đoán.
+        """
+        if hit:
+            self.taps_hit += 1
+        else:
+            self.taps_miss += 1
+        d = self.hit_by_origin.setdefault(origin, {"hit": 0, "miss": 0})
+        d["hit" if hit else "miss"] += 1
 
     def note_block(self, reason: str) -> None:
         self.blocked += 1

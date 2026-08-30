@@ -40,6 +40,10 @@ class AdAttempt:
     tried_points: list[tuple[float, float]] = field(default_factory=list)
     last_scan: float = 0.0
     candidates: list[Candidate] = field(default_factory=list)
+    # Cú tap vừa bắn, đang chờ xem có ăn không. Giữ luôn frame NGAY TRƯỚC lúc
+    # tap để làm mẫu huấn luyện — sau khi tap thì màn hình đã đổi, chụp lại là
+    # muộn. Xem `BotEngine._confirm_tap`.
+    pending: dict | None = None
 
     def elapsed(self) -> float:
         return time.time() - self.started
