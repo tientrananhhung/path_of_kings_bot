@@ -28,7 +28,7 @@ const S = {
 const TRAIL_MAX = 20;
 const COLORS = {
   rule: '#58a6ff', ad_step: '#ff9f43', watchdog: '#bc8cff',
-  blind_tap: '#ff7b72', manual: '#7ee787', blocked: '#f85149',
+  manual: '#7ee787', blocked: '#f85149',
 };
 
 // ---------------------------------------------------------------- tabs
@@ -48,6 +48,18 @@ $('#btn-pause').onclick = () => post('/api/control/pause');
 $('#btn-stop').onclick = () => post('/api/control/stop');
 $('#btn-kill').onclick = () => { if (confirm('KILL bot ngay?')) post('/api/control/kill'); };
 $('#btn-clearlog').onclick = () => { $('#log').innerHTML = ''; };
+
+const SYSLOG_KEY = 'pok.syslog';
+function syncSyslog() {
+  const on = $('#opt-syslog').checked;
+  $('#log-mode').textContent = on ? '— đang hiện cả log hệ thống'
+                                  : '— chỉ log cần thiết (bật thêm ở tab Settings)';
+  try { localStorage.setItem(SYSLOG_KEY, on ? '1' : '0'); } catch (e) { /* private mode */ }
+}
+try { $('#opt-syslog').checked = localStorage.getItem(SYSLOG_KEY) === '1'; }
+catch (e) { /* private mode */ }
+$('#opt-syslog').onchange = syncSyslog;
+syncSyslog();
 
 // ---------------------------------------------------------------- WebSocket
 let ws, wsTimer;
@@ -99,9 +111,16 @@ function setBadge(sel, text, cls) {
 function onEvent(ev) {
   const t = new Date((ev.ts || Date.now() / 1000) * 1000)
     .toLocaleTimeString('vi-VN', { hour12: false });
-  let cls = ev.type, text = '';
+  // "log hệ thống" = chi tiết chẩn đoán. Nguồn tự đánh dấu `sys` chứ client
+  // KHÔNG đoán theo nội dung chuỗi — đổi câu chữ tiếng Việt là vỡ ngay.
+  // `classify` luôn thuộc nhóm này: nó là kết quả OCR định kỳ, không phải
+  // sự kiện; lúc màn hình chuyển cảnh nó chạy ~7 lần/giây.
+  const heThong = ev.type === 'classify' || (ev.type === 'log' && ev.sys);
+  if (heThong && !$('#opt-syslog').checked) return;
 
-  if (ev.type === 'log') { cls = ev.level; text = ev.msg; }
+  let cls = ev.type, text = '', key = '';
+
+  if (ev.type === 'log') { cls = ev.level; text = ev.msg; key = `log|${ev.msg}`; }
   else if (ev.type === 'state') { text = `${ev.from} → ${ev.to}  ${ev.reason || ''}`; }
   else if (ev.type === 'action') {
     text = `${ev.kind} ${ev.blocked ? 'BỊ CHẶN(' + ev.block_reason + ')' : ''} `
@@ -115,11 +134,27 @@ function onEvent(ev) {
     S.cands.unshift(ev); S.cands = S.cands.slice(0, 12);
   } else if (ev.type === 'classify') {
     text = `${ev.kind} — ${ev.reason} (hf=${ev.hf}, ${ev.texts} vùng chữ)`;
+    // Gộp theo kind+reason, KHÔNG theo cả dòng: hf đổi vài phần trăm mỗi lần
+    // nên hai dòng liên tiếp không bao giờ giống hệt và sẽ không gộp được.
+    key = `classify|${ev.kind}|${ev.reason}`;
   } else { text = JSON.stringify(ev); }
 
   const box = $('#log');
+  const cuoi = box.lastElementChild;
+
+  // Cùng nội dung với dòng ngay trên -> đè lên dòng đó, đếm thay vì thêm dòng.
+  // Lúc màn hình đang chuyển cảnh, engine OCR lại ~7 lần/giây và log ngập.
+  if (key && cuoi && cuoi.dataset.key === key) {
+    cuoi.dataset.n = String(Number(cuoi.dataset.n || 1) + 1);
+    cuoi.innerHTML = `<span class="t">${t}</span> ${esc(text)}`
+                   + ` <span class="pill">×${cuoi.dataset.n}</span>`;
+    box.scrollTop = box.scrollHeight;
+    return;
+  }
+
   const div = document.createElement('div');
   div.className = cls;
+  if (key) div.dataset.key = key;
   div.innerHTML = `<span class="t">${t}</span> ${esc(text)}`;
   box.appendChild(div);
   while (box.children.length > 400) box.removeChild(box.firstChild);
@@ -411,6 +446,8 @@ function ruleHTML(r, i) {
       <span class="hint">template</span><input type="text" data-idx="${i}" data-field="when.template" value="${esc(w.template || '')}">
       <span class="hint">min_score</span><input type="number" step="0.01" data-idx="${i}" data-field="when.min_score" value="${w.min_score ?? 0.8}">
       <span class="hint">contains</span><input type="text" data-idx="${i}" data-field="when.contains" value="${esc(w.contains || '')}">
+      <span class="hint" title="Chữ phải nằm trong dải dọc này (0 = đỉnh, 1 = đáy). Để trống = cả màn hình. Dùng khi keyword cũng xuất hiện trên HUD/nav bar cố định.">y_min</span><input type="number" step="0.01" min="0" max="1" data-idx="${i}" data-field="when.y_min" value="${w.y_min ?? ''}">
+      <span class="hint" title="Nav bar đáy màn hình đọc ra 'tauern | shop | pup raid | bosses | rank' -> luật 'pup raid' khớp ở MỌI màn. Tiêu đề dialog ở y/h≈0.19 nên y_max=0.5 tách được.">y_max</span><input type="number" step="0.01" min="0" max="1" data-idx="${i}" data-field="when.y_max" value="${w.y_max ?? ''}">
     </div>
     <div class="row">
       <span class="hint">làm</span>
@@ -446,7 +483,7 @@ const WHEN_FIELDS = {
   idle: ['seconds'],
   color: ['at', 'rgb', 'tolerance'],
   template: ['template', 'region', 'min_score'],
-  text: ['contains'],
+  text: ['contains', 'y_min', 'y_max'],
   always: [],
 };
 const DO_FIELDS = {
@@ -509,7 +546,7 @@ $('#rules-save').onclick = async () => {
 // --- Ads ---
 const ADS_FIELDS = [
   ['min_watch_seconds', 'number'], ['rescan_interval_s', 'number'],
-  ['rescan_max_s', 'number'], ['corner_box', 'number'],
+  ['rescan_max_s', 'number'], ['vlm_band_top', 'number'],
   ['edge_band_pct', 'number'], ['max_area_pct', 'number'],
   ['confirm_delay_s', 'number'],
 ];
@@ -523,7 +560,7 @@ function renderAds() {
     <tr><td>vlm.device</td><td><input id="ads-vlm-dev" type="text" value="${esc(a.vlm?.device || 'mps')}"></td></tr>
     <tr><td>vlm.dtype</td><td><input id="ads-vlm-dt" type="text" value="${esc(a.vlm?.dtype || 'float16')}"></td></tr>
     <tr><td>vlm.beams</td><td><input id="ads-vlm-beams" type="number" value="${a.vlm?.beams ?? 1}"></td></tr>
-    <tr><td>vlm.corners</td><td><input id="ads-vlm-corners" type="text" value="${(a.vlm?.corners || []).join(', ')}"></td></tr>`;
+    <tr><td>vlm.prompts</td><td><input id="ads-vlm-prompts" type="text" value="${(a.vlm?.prompts || []).join(', ')}"></td></tr>`;
   $('#ads-kw').value = (a.close_keywords || []).join('\n');
   $('#ads-ckw').value = (a.classify_keywords || []).join('\n');
   $('#ads-block').value = (a.blocklist || []).join('\n');
@@ -537,7 +574,7 @@ $('#ads-save').onclick = async () => {
   a.vlm.device = $('#ads-vlm-dev').value.trim();
   a.vlm.dtype = $('#ads-vlm-dt').value.trim();
   a.vlm.beams = Number($('#ads-vlm-beams').value);
-  a.vlm.corners = $('#ads-vlm-corners').value.split(',').map((x) => x.trim()).filter(Boolean);
+  a.vlm.prompts = $('#ads-vlm-prompts').value.split(',').map((x) => x.trim()).filter(Boolean);
   a.close_keywords = $('#ads-kw').value.split('\n').map((x) => x.trim()).filter(Boolean);
   a.classify_keywords = $('#ads-ckw').value.split('\n').map((x) => x.trim()).filter(Boolean);
   a.blocklist = $('#ads-block').value.split('\n').map((x) => x.trim()).filter(Boolean);

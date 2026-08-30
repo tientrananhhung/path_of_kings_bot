@@ -25,7 +25,7 @@ class FakeBus:
     def publish(self, e):
         self.events.append(e)
 
-    def log(self, level, msg):
+    def log(self, level, msg, **extra):
         self.events.append({"type": "log", "level": level, "msg": msg})
 
 

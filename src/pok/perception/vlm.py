@@ -85,7 +85,8 @@ class FlorenceVLM:
             except Exception:
                 pass
             if bus:
-                bus.log("info", f"VLM prewarm xong {(_t.perf_counter()-t0)*1000:.0f}ms")
+                bus.log("info", f"VLM prewarm xong {(_t.perf_counter()-t0)*1000:.0f}ms",
+                        sys=True)
 
         threading.Thread(target=_job, name="vlm-prewarm", daemon=True).start()
 

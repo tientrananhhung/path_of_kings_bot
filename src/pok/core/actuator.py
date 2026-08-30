@@ -97,6 +97,15 @@ class Actuator:
             return False
         hold_ms = self.guard.clamp_hold_ms(hold_ms)
         self.ensure_focus(win)
+        # NGAY TRƯỚC khi bắn event thật. Event `action` chỉ publish SAU khi nhả
+        # chuột, nên khi bot làm sai thì không biết nó ĐỊNH làm gì ở đâu. `rel`
+        # in đúng dạng đang nằm trong config để đối chiếu thẳng với luật.
+        # sys=True: chi tiết chẩn đoán, chỉ hiện khi bật "log hệ thống".
+        self.bus.log("info",
+                     f"▶ TAP {source} · {label} | rel ({rel[0]:.3f}, {rel[1]:.3f})"
+                     f" | màn hình ({pt[0]:.0f}, {pt[1]:.0f})"
+                     f" | giữ {hold_ms}ms"
+                     f" | cửa sổ {win.w}x{win.h} @({win.x},{win.y})", sys=True)
         _post(Quartz.kCGEventMouseMoved, *pt)
         time.sleep(0.05)
         _post(Quartz.kCGEventLeftMouseDown, *pt)
@@ -131,6 +140,14 @@ class Actuator:
         # điểm nội suy THẬT — web overlay vẽ đúng những điểm này, không phải
         # đường thẳng giả định
         pts_rel: list[tuple[float, float]] = []
+        self.bus.log("info",
+                     f"▶ SWIPE {source} · {label}"
+                     f" | rel ({rel_from[0]:.3f}, {rel_from[1]:.3f})"
+                     f" -> ({rel_to[0]:.3f}, {rel_to[1]:.3f})"
+                     f" | màn hình ({p0[0]:.0f}, {p0[1]:.0f})"
+                     f" -> ({p1[0]:.0f}, {p1[1]:.0f})"
+                     f" | {duration_ms}ms · {steps} bước · giữ cuối {hold_end_ms}ms"
+                     f" | cửa sổ {win.w}x{win.h} @({win.x},{win.y})", sys=True)
         _post(Quartz.kCGEventMouseMoved, *p0)
         time.sleep(0.08)
         _post(Quartz.kCGEventLeftMouseDown, *p0)

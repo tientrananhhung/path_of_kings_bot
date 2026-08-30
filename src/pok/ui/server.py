@@ -247,17 +247,15 @@ def create_app(app_ctx) -> FastAPI:
 
         out["vlm"] = []
         if want_vlm and ctx.engine.vlm.enabled:
-            for corner in ctx.engine.closer.corners():
-                t0 = time.perf_counter()
-                job = ctx.engine.worker.run_sync(
-                    lambda c=corner: ctx.engine.closer.step_vlm_corner(
-                        bgr, res.texts, c), name=f"probe:{corner}", timeout=60)
-                out["vlm"].append({
-                    "corner": corner,
-                    "ms": round(job.ms, 0),
-                    "error": job.error,
-                    "candidates": [_cand(c, bgr) for c in (job.result or [])],
-                })
+            job = ctx.engine.worker.run_sync(
+                lambda: ctx.engine.closer.step_vlm_top(bgr, res.texts),
+                name="probe:vlm", timeout=60)
+            out["vlm"].append({
+                "corner": "dải 25% trên",
+                "ms": round(job.ms, 0),
+                "error": job.error,
+                "candidates": [_cand(c, bgr) for c in (job.result or [])],
+            })
         out["blocked"] = [e for e in list(ctx.bus.recent)[seen_before:]
                           if e.get("type") == "candidate_blocked"]
         return out
@@ -299,7 +297,8 @@ def create_app(app_ctx) -> FastAPI:
             only = [r for r in eng.rules if r is rule]
             keep, eng.rules = eng.rules, only
             try:
-                hit = eng.evaluate(bgr, idle, low, ignore_enabled=True,
+                hit = eng.evaluate(bgr, idle, low, texts=res.texts,
+                                   ignore_enabled=True,
                                    ignore_cooldown=True)
             finally:
                 eng.rules = keep

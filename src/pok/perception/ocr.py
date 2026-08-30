@@ -80,8 +80,27 @@ def find_any(texts: list[TextBox], keywords: list[str]) -> list[TextBox]:
 
 def text_near(texts: list[TextBox], cx: float, cy: float,
               radius: float = 40.0) -> list[str]:
+    """Chữ nằm trong `radius` point quanh điểm, đo tới CẠNH hộp chữ.
+
+    Bản cũ so `|t.cx - cx| <= radius + t.w/2` — tức là cộng thêm NỬA CHIỀU RỘNG
+    hộp chữ vào bán kính. Chữ càng dài thì vùng cấm càng phình ra, mà chiều dài
+    một chuỗi chữ chẳng nói gì về việc nút bấm nằm đâu.
+
+    Bug đã gặp thật (phiên data/sessions/20260830-080353): quảng cáo có ✕ rõ
+    ràng ở (372,68) và nút "PLAY NOW" hộp 94x18 ở (317,115).
+
+        khoảng cách thật từ ✕ tới CẠNH hộp chữ : 38.8pt
+        ngưỡng của luật cũ theo trục x         : 40 + 94/2 = 87pt  -> CHẶN
+
+    Tầng 2b tìm đúng ✕ mỗi 2 giây suốt 46 giây, lần nào cũng bị chính bộ lọc
+    của mình vứt đi, bot đứng im tới lúc bị tắt tay.
+
+    Điểm nằm TRONG hộp chữ -> khoảng cách 0 -> luôn tính là gần.
+    """
     res = []
     for t in texts:
-        if abs(t.cx - cx) <= radius + t.w / 2 and abs(t.cy - cy) <= radius + t.h / 2:
+        dx = max(0.0, abs(t.cx - cx) - t.w / 2)
+        dy = max(0.0, abs(t.cy - cy) - t.h / 2)
+        if (dx * dx + dy * dy) <= radius * radius:
             res.append(t.text.lower().strip())
     return res

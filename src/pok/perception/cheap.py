@@ -93,6 +93,19 @@ def content_rect(bgr: np.ndarray) -> tuple[int, int, int, int]:
     return (left, top, w - left - right, h - top - bot)
 
 
+def crop_top_band(bgr: np.ndarray, pct: float) -> tuple[np.ndarray, tuple[int, int]]:
+    """Cắt dải TRÊN CÙNG theo tỉ lệ chiều cao. Trả (ảnh, offset local (x,y)).
+
+    Thay cho 4 ô góc ở tầng C. Đo trên mọi nút đóng đã gặp — ✕ App Store (46,145)
+    y/h=0.161 · ✕ E.D.E.N (32,121) 0.135 · ✕ Binance (371,91) 0.101 · ✕ playable
+    (372,68) 0.076 · nút tròn skip (376,123) 0.137 — **5/5 đều dưới 0.17**.
+    Dải 25% giữ trọn cả năm, mà chỉ tốn MỘT lần gọi VLM thay vì bốn.
+    """
+    h, w = bgr.shape[:2]
+    bh = max(1, min(h, int(round(h * pct))))
+    return (np.ascontiguousarray(bgr[0:bh, 0:w]), (0, 0))
+
+
 def crop_corner(bgr: np.ndarray, corner: str, box: int) -> tuple[np.ndarray, tuple[int, int]]:
     """Cắt ô góc. Trả (ảnh, offset local (x,y)).
 

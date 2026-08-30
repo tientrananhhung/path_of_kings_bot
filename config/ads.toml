@@ -2,7 +2,6 @@
 min_watch_seconds = 5.0
 rescan_interval_s = 2.0
 rescan_max_s      = 45.0
-corner_box        = 130     # point
 edge_band_pct     = 0.15    # cửa hình học: tâm phải nằm trong dải này
 max_area_pct      = 0.04    # cửa kích thước
 confirm_delay_s   = 1.2     # chờ bao lâu rồi xác nhận tap có ăn
@@ -71,11 +70,29 @@ close_keywords = ["skip", "skip ad", "close", "đóng", "continue", "tiếp tụ
 classify_keywords = ["skip", "skip ad", "close", "đóng", "no thanks",
                      "bỏ qua", "tiếp tục"]
 
+# Bán kính cửa blocklist, đo tới CẠNH hộp chữ (không phải tâm).
+# Hai mức theo độ mạnh của bằng chứng:
+#   - ứng viên VLM/OCR: 40pt. Florence-2 từng gán nhãn nút Install là
+#     "close button" -> phải nghi ngờ rộng tay.
+#   - dấu ✕ của tầng 2b: 20pt. Đây là bằng chứng HÌNH HỌC (mực trên hai đường
+#     chéo, đường giữa trống), không phải model đoán.
+# Bug đã gặp (phiên 20260830-080353): ✕ đúng ở (372,68), cạnh hộp chữ
+# "PLAY NOW" cách 38.8pt -> mức 40 chặn, mức 20 cho qua. Quảng cáo đứng nguyên
+# 46 giây trong khi tầng 2b tìm ra đúng nút mỗi 2 giây.
+blocklist_radius_pt      = 40
+blocklist_radius_icon_pt = 20
+
 # Cửa blocklist: KHÔNG BAO GIỜ tap nếu quanh đó có các chữ này.
 # Florence-2 đã thực sự gán nhãn nút Install là "close button" -> đây là chốt an toàn.
 blocklist = ["install", "cài đặt", "get", "download", "tải", "play", "chơi",
              "open", "mở", "subscribe", "đăng ký", "buy", "mua", "free trial",
              "dùng thử", "shop", "claim"]
+
+# Tầng C quét MỘT lần trên dải trên cùng, không còn 4 ô góc.
+# Mọi nút đóng đã đo được đều nằm trong dải này (y/h): ✕ App Store 0.161 ·
+# ✕ E.D.E.N 0.135 · ✕ Binance 0.101 · ✕ playable 0.076 · nút tròn skip 0.137.
+# 5/5 dưới 0.17 -> 0.25 giữ trọn, mà 4 lần gọi ~4.2s rút còn 1 lần ~0.6s.
+vlm_band_top      = 0.25
 
 [vlm]
 enabled = true
@@ -83,34 +100,32 @@ model   = "florence-community/Florence-2-base-ft"
 device  = "mps"
 dtype   = "float16"
 beams   = 1
-# "close button" MỘT MÌNH là chưa đủ. Trên quảng cáo playable, nút đóng là nút
-# skip hình tròn có dấu >>| chứ không phải dấu ✕; với prompt "close button"
-# Florence-2 trả box phủ 98% crop (= không thấy gì), còn "circular button" trả
-# đúng (376,122) 26x26 — lệch 1pt so với nút thật.
-prompts = ["close button", "circular button"]
-corners = ["tr", "tl", "br", "bl"]   # thứ tự thử
+# MỘT prompt duy nhất, và KHÔNG PHẢI "close button".
+#
+# Đo thật trên dải 25% của 6 ảnh (4 quảng cáo có nút + 2 màn game), mỗi prompt
+# ~580ms. Prompt nào chứa chữ "close" đều TRƯỢT SẠCH — Florence-2 trả về box
+# phủ trọn crop (393x212), tức "tôi không thấy gì":
+#
+#     close button                trúng 0/6
+#     close icon                  trúng 0/6
+#     close                       trúng 0/6
+#     close button in the corner  trúng 0/3
+#     skip button                 trúng 0/6
+#     circular button             trúng 2/3
+#     circle button               trúng 3/3   <- chọn cái này
+#
+# "circle button" trúng cả 3: nút tròn skip playable (lệch 0pt), ✕ trong dialog
+# đếm ngược (lệch 2pt), ✕ trên nền đen (lệch 0pt). Nó mô tả HÌNH DẠNG chứ không
+# mô tả CHỨC NĂNG — Florence-2 train trên ảnh đời thường nên không có khái niệm
+# "nút đóng", nhưng nhìn ra hình tròn thì tốt.
+#
+# Giá phải trả: nó cũng chỉ ra nút bánh răng của game ở (44,86) 32x32 trên cả 3
+# màn game thử. Chấp nhận được vì `_state_ad_closing` thoát ngay khi có luật
+# tầng A khớp, tức là trên màn game thì không bao giờ chạy tới bước 3.
+prompts = ["circle button"]
 
 # Cửa kích thước tuyệt đối, CHỈ áp cho tầng C. Xem `AdCloser._gate_side`.
 # Đo 22 ứng viên lọt đủ 4 cửa cũ: 3 đúng (26/46/47pt), 19 sai (11..129pt).
 # Khoảng [20,50] giữ cả 3 đúng, loại 15/19 sai -> chính xác 14% -> 43%.
 min_side_pt = 20
 max_side_pt = 50
-
-# Bước 5 — blind tap. `at` là rel theo MÀN HÌNH THẬT (đã trừ viền máy), KHÔNG
-# phải theo cửa sổ; `AdCloser.blind_points` lo việc quy đổi. Hiểu nhầm chỗ này
-# là bug đã gặp: (0.93,0.05) theo cửa sổ ra điểm cách mép trên màn hình 7pt,
-# rơi vào vùng notch. Lưới dưới đây bám đúng chỗ 5 nút đóng thật đã đo được
-# (quy về rel màn hình): (0.934,0.100) (0.924,0.035) (0.096,0.126)
-# (0.921,0.062) (0.061,0.097). Phải-trước vì hay gặp hơn.
-[[blind_tap]]
-at = [0.93, 0.10]
-[[blind_tap]]
-at = [0.93, 0.04]
-[[blind_tap]]
-at = [0.07, 0.10]
-[[blind_tap]]
-at = [0.07, 0.13]
-[[blind_tap]]
-at = [0.93, 0.16]
-[[blind_tap]]
-at = [0.07, 0.04]
