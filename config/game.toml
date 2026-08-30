@@ -1086,3 +1086,39 @@ y_max = 0
 action = "tap_text"
 text = "collect"
 dy = 0
+
+[[rule]]
+name = "PEACE WAS NEVER AN OPTION -> Chọn Scaew"
+enabled = true
+priority = 54
+cooldown_s = 3
+enters_ad = false
+
+[rule.when]
+kind = "text"
+contains = "peace was never an option"
+y_min = 0
+y_max = 0
+
+[rule.do]
+action = "tap_text"
+text = "scare"
+dy = 0
+
+[[rule]]
+name = "PEACE WAS NEVER AN OPTION -> Chọn COLLECT"
+enabled = true
+priority = 55
+cooldown_s = 3
+enters_ad = false
+
+[rule.when]
+kind = "text"
+contains = "peace was never an option"
+y_min = 0
+y_max = 0
+
+[rule.do]
+action = "tap_text"
+text = "collect"
+dy = 0
