@@ -254,6 +254,53 @@ Cảnh báo: ngưỡng `_gate_side` **[20,50]** được đo dưới chế độ
 130×130). Dưới chế độ mới, nút thật đo được là 26×28, 30×34 và **một ✕ thật 18×18 bị chặn**
 vì dưới ngưỡng 20. Ca đó tầng 2b vẫn bắt được nên chưa mất gì, nhưng ngưỡng này đáng đo lại.
 
+### Xác nhận tap — và bot tự gán nhãn cho chính nó
+
+`closed_by_step` **không chứng minh được tầng nào đang gánh việc**: nó chỉ ghi "lúc phát
+hiện đã về game thì đang ở bước mấy", nên quảng cáo tự tắt trong lúc VLM chạy 0.6s cũng
+được tính cho VLM. Đừng dùng nó để so tầng.
+
+`_confirm_tap()` mới là chỗ đo thật, dùng `ads.confirm_delay_s` (1.2s):
+
+| kết cục | điều kiện | dùng làm |
+|---|---|---|
+| `hit` | về được màn game trong cửa sổ chờ | mẫu **dương** — chỗ đó đúng là nút đóng |
+| `miss` | hết cửa sổ mà phash y nguyên (d ≤ 3) | mẫu **âm** |
+| (bỏ) | màn đổi nhưng vẫn ở quảng cáo | không kết luận được, **không ghi mẫu** |
+
+Kết quả vào `stats.hit_by_origin` tách theo `ocr` / `icon` / `vlm:top`, và vào
+`data/samples/` qua [`SampleWriter`](src/pok/store/samples.py): ảnh PNG **của frame ngay
+TRƯỚC lúc tap** + khung ứng viên + kết cục. Chụp lại sau khi tap là muộn — màn hình đã đổi.
+
+Đây là dữ liệu để train detector sau này: nhãn cần đúng ba thứ (ảnh · khung · class) và cả
+ba đều đã có sẵn trong vòng đời một lần đóng quảng cáo. Bot chạy bình thường là dữ liệu tự
+sinh, không ai phải ngồi khoanh tay từng tấm.
+
+Khi **cả ba tầng bó tay** (escalate ở bước 5), bot lưu frame với `box: null`, kèm danh
+sách điểm đã thử. Đây là mẫu **quý nhất** và là loại **duy nhất phải khoanh tay**. Phải lưu
+đúng khoảnh khắc đó: ngay sau là gesture Home, màn hình biến mất — chờ người dùng tự bấm
+chụp thì gần như luôn muộn.
+
+**`hit` là bằng chứng gián tiếp** — quảng cáo tự tắt đúng trong cửa sổ 1.2s cũng ra `hit`.
+Hiếm, nhưng đừng coi tập này là nhãn vàng; liếc qua trước khi train.
+Tắt bằng `ads.collect_samples = false`. Xem
+[tests/test_xac_nhan_tap.py](tests/test_xac_nhan_tap.py).
+
+### `min_watch_seconds` là TRẦN, không phải giấc ngủ
+
+`AD_WATCHING` ngồi xem tối đa **120s**, nhưng thoát **ngay** khi có bằng chứng đã về màn
+game (`_back_to_game`, dùng chung với `AD_CLOSING`).
+
+Vì sao trần phải dài — phiên `data/sessions/20260830-081318`: chờ đúng 5 giây rồi vào quét
+trong khi quảng cáo **còn đang tải** (OCR ra 4 chữ). Bước 3 tap ứng viên VLM ở
+rel (0.906, 0.150) → **mở thẳng App Store**, kẹt 45 giây, phải escalate + 5 cú vuốt Home.
+Một cú tap sớm tốn **60 giây**.
+
+Nhiều quảng cáo hiện nút đóng **ngay** nhưng đang tắt, quanh nó là vòng tròn đếm giờ. Vòng
+tròn là **đồ hoạ**, `countdown_left()` đọc chữ nên không thấy — chờ đủ lâu là cách duy nhất
+hiện có. `TIMEOUTS[AD_WATCHING]` (150s) **phải lớn hơn** `min_watch_seconds`, nếu không
+STUCK cắt ngang. Xem [tests/test_ad_watching_tran.py](tests/test_ad_watching_tran.py).
+
 ### Đã bỏ: blind tap
 
 Sáu điểm tap đoán ở bước 5 đã bỏ hẳn. Đo trên 57 phiên: nó đóng được **1/45** lần, đổi lại

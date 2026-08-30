@@ -23,6 +23,7 @@ from ..perception.types import ScreenKind
 from ..perception.vlm import FlorenceVLM
 from ..perception.worker import PerceptionWorker
 from ..store.events import EventBus
+from ..store.samples import SampleWriter
 from ..store.stats import SessionStats
 from .ad_closer import AdAttempt, AdCloser
 from .rules import RuleEngine
@@ -55,6 +56,9 @@ class BotEngine:
         self.rules = RuleEngine(cfg.game, templates_dir=TEMPLATES_DIR)
         self.closer = AdCloser(cfg.ads, self.vlm, bus)
         self.dog = Watchdog(self.act, bus, self.stats)
+        self.samples = SampleWriter(
+            data_path("samples", ".keep").parent,
+            enabled=bool(cfg.ads.get("collect_samples", True)))
 
         self.state = BotState.STOPPED
         self.entered_at = time.time()
@@ -443,10 +447,109 @@ class BotEngine:
                 return
         self._goto(BotState.GAME_PLAY, "không còn thấy nút thưởng")
 
+    def _back_to_game(self, res, bgr) -> str | None:
+        """Bằng chứng DƯƠNG là đã về lại màn game, hoặc None.
+
+        `classify == GAME` KHÔNG đủ: nó chỉ là nhánh mặc định "không khớp màn
+        hệ thống nào", nên một frame quảng cáo lạ cũng ra GAME. Ba bằng chứng:
+          1. đang ở Home Screen
+          2. có luật tầng A nào khớp -> luật chính là chữ ký của màn game
+          3. phash khớp màn ngay trước khi bấm vào quảng cáo
+
+        Dùng chung cho AD_WATCHING và AD_CLOSING — hai chỗ dùng hai tiêu chuẩn
+        khác nhau là công thức tạo vòng lặp (đã xảy ra thật).
+        """
+        if res.kind is ScreenKind.HOME:
+            return "về Home Screen"
+        low = " | ".join(t.text.lower() for t in res.texts)
+        if self.rules.evaluate(bgr, 0.0, low, ignore_enabled=True,
+                               ignore_cooldown=True,
+                               texts=res.texts) is not None:
+            return "có luật tầng A khớp"
+        if self._pre_ad_hash is not None:
+            d = cheap.phash_distance(cheap.phash(bgr), self._pre_ad_hash)
+            if d <= 6:
+                return f"phash khớp màn trước quảng cáo (d={d})"
+        return None
+
     def _state_ad_watching(self, res, win, bgr) -> None:
+        """Ngồi xem cho hết quảng cáo. `min_watch_seconds` là TRẦN, không phải
+        giấc ngủ cố định — về tới màn game thì ra ngay.
+
+        Vì sao trần phải dài: bug đã gặp (phiên data/sessions/20260830-081318).
+        Chờ đúng 5 giây rồi vào quét trong khi quảng cáo còn ĐANG TẢI (OCR đọc
+        được 4 chữ). Bước 3 tap ứng viên VLM ở rel (0.906,0.150) -> mở thẳng
+        App Store, kẹt 45 giây, phải escalate + 5 cú vuốt Home mới thoát. Một
+        cú tap sớm tốn 60 giây.
+
+        Nhiều quảng cáo hiện nút đóng NGAY nhưng đang tắt, quanh nó là vòng
+        tròn đếm thời gian — vòng tròn đó là đồ hoạ, `countdown_left()` đọc chữ
+        nên không thấy. Chờ đủ lâu là cách duy nhất hiện có để không tap vào nó.
+        """
+        back = self._back_to_game(res, bgr)
+        if back:
+            self.stats.note_close("step0")
+            self.guard.clear_stuck()
+            self._goto(BotState.GAME_PLAY, f"quảng cáo đã đóng khi đang xem: {back}")
+            return
         min_watch = float(self.cfg.ads.get("min_watch_seconds", 5.0))
         if self.elapsed >= min_watch:
-            self._goto(BotState.AD_CLOSING, f"đã chờ {min_watch}s")
+            self._goto(BotState.AD_CLOSING, f"đã xem đủ {min_watch:.0f}s")
+
+    def _note_tap(self, a, bgr, c, step: str, label: str) -> None:
+        """Nhớ cú tap vừa bắn, kèm frame NGAY TRƯỚC lúc tap.
+
+        Phải copy frame: sau cú tap màn hình đổi, lúc đó chụp lại là muộn — mà
+        đúng tấm ảnh "trước khi tap" mới là mẫu huấn luyện cần.
+        """
+        a.pending = {
+            "bgr": bgr.copy(),
+            "box": {"cx": c.cx, "cy": c.cy, "w": c.w, "h": c.h},
+            "origin": c.origin or "?",
+            "label": label,
+            "step": step,
+            "at": time.time(),
+            "phash": cheap.phash(bgr),
+        }
+
+    def _confirm_tap(self, a, bgr, back: str | None) -> None:
+        """Cú tap vừa rồi có ăn không — ĐO, không suy đoán.
+
+        `closed_by_step` chỉ ghi "lúc phát hiện đã về game thì đang ở bước mấy",
+        nên quảng cáo tự tắt trong lúc VLM chạy 0.6s cũng được tính cho VLM. Vì
+        thế con số "bước 3 đóng được 7 lần" không chứng minh được điều gì.
+
+        Ba kết cục:
+          hit     — về được màn game trong cửa sổ chờ -> chỗ đó ĐÚNG là nút đóng
+          miss    — hết cửa sổ mà màn hình y nguyên   -> chỗ đó KHÔNG phải
+          (bỏ)    — màn hình có đổi nhưng vẫn ở quảng cáo: không kết luận được,
+                    có thể do chính quảng cáo chuyển cảnh. Không ghi mẫu.
+
+        `hit` là bằng chứng gián tiếp — quảng cáo tự tắt đúng lúc cũng ra `hit`.
+        Cửa sổ ngắn nên hiếm, nhưng đừng coi tập mẫu này là nhãn vàng.
+        """
+        p = a.pending
+        if p is None:
+            return
+        cho = float(self.cfg.ads.get("confirm_delay_s", 1.2))
+        if back:
+            ket = "hit"
+        elif time.time() - p["at"] < cho:
+            return                       # chưa tới lúc kết luận
+        else:
+            d = cheap.phash_distance(cheap.phash(bgr), p["phash"])
+            ket = "miss" if d <= 3 else None
+        a.pending = None
+        if ket is None:
+            return
+        self.stats.note_tap(p["origin"], ket == "hit")
+        ten = self.samples.record(
+            p["bgr"], p["box"], ket,
+            meta={"origin": p["origin"], "step": p["step"], "label": p["label"]})
+        self.bus.log("info",
+                     f"tap {p['origin']} @({p['box']['cx']:.0f},{p['box']['cy']:.0f})"
+                     f" -> {'TRÚNG' if ket == 'hit' else 'trượt'}"
+                     + (f" · mẫu {ten}" if ten else ""))
 
     def _state_ad_closing(self, res, win, bgr) -> None:
         a = self.attempt
@@ -458,25 +561,10 @@ class BotEngine:
 
         # KHÔNG thoát khi thấy APPSTORE: trang cài app là một phần của quảng
         # cáo, cứ quét tìm nút đóng tiếp. Chỉ coi là xong khi thấy lại màn game.
-        # Thoát AD_CLOSING cần BẰNG CHỨNG DƯƠNG là đã về game.
-        # `classify == GAME` KHÔNG đủ: nó chỉ là nhánh mặc định "không khớp màn
-        # hệ thống nào", nên một frame quảng cáo lạ cũng ra GAME và bot sẽ tưởng
-        # đã đóng xong. Hai bằng chứng dương:
-        #   1. có luật tầng A nào khớp  -> luật chính là chữ ký của màn game
-        #   2. phash khớp màn ngay trước khi vào quảng cáo -> game trả về chỗ cũ
-        back = None
-        if res.kind is ScreenKind.HOME:
-            back = "về Home Screen"
-        else:
-            low_now = " | ".join(t.text.lower() for t in res.texts)
-            if self.rules.evaluate(bgr, 0.0, low_now, ignore_enabled=True,
-                                   ignore_cooldown=True,
-                                   texts=res.texts) is not None:
-                back = "có luật tầng A khớp"
-            elif self._pre_ad_hash is not None:
-                d = cheap.phash_distance(cheap.phash(bgr), self._pre_ad_hash)
-                if d <= 6:
-                    back = f"phash khớp màn trước quảng cáo (d={d})"
+        back = self._back_to_game(res, bgr)
+        # Xác nhận TRƯỚC khi thoát: `_goto` rời AD_CLOSING sẽ vứt `attempt`,
+        # mà cú tap đang chờ nằm trong đó.
+        self._confirm_tap(a, bgr, back)
         if back:
             self.stats.note_close(f"step{a.step}")
             self.guard.clear_stuck()
@@ -534,6 +622,7 @@ class BotEngine:
             if self.closer.already_tried(a, rel):
                 continue
             a.tried_points.append(rel)
+            self._note_tap(a, bgr, c, "2", f"OCR '{c.label}'")
             self.act.tap(rel, win, source="ad_step",
                          label=f"bước 2 OCR '{c.label}'", frame_id=fid)
             return
@@ -545,6 +634,7 @@ class BotEngine:
             if self.closer.already_tried(a, rel):
                 continue
             a.tried_points.append(rel)
+            self._note_tap(a, bgr, c, "2b", f"✕ điểm={c.score}")
             self.act.tap(rel, win, source="ad_step",
                          label=f"bước 2b ✕ {c.origin} điểm={c.score}",
                          frame_id=fid)
@@ -564,6 +654,7 @@ class BotEngine:
                 if self.closer.already_tried(a, rel):
                     continue
                 a.tried_points.append(rel)
+                self._note_tap(a, bgr, c, "3", c.label)
                 self.act.tap(rel, win, source="ad_step",
                              label=f"bước 3 VLM dải trên ({job.ms:.0f}ms)",
                              frame_id=fid)
@@ -580,8 +671,19 @@ class BotEngine:
         # về Home luôn, đừng bắn bừa.
         a.step = 5
         self.stats.ads_failed += 1
-        self.bus.log("warn", "không đóng được quảng cáo -> escalate về Home")
-        self.act.home_gesture(win, label="bước 6 escalate")
+        # MẪU QUÝ NHẤT: quảng cáo mà cả ba tầng đều bó tay. Phải lưu ĐÚNG LÚC
+        # NÀY — ngay sau đây là gesture Home, màn hình đó biến mất và không
+        # chụp lại được. Chờ người dùng tự bấm chụp thì gần như luôn muộn.
+        # Không có khung: theo định nghĩa bot không biết nút nằm đâu, nên đây
+        # là loại mẫu duy nhất phải khoanh tay.
+        ten = self.samples.record(
+            bgr, None, "fail",
+            meta={"tried": [[round(x, 4), round(y, 4)] for x, y in a.tried_points],
+                  "scanning_s": round(a.scanning_elapsed(), 1),
+                  "vlm": bool(self.vlm.enabled)})
+        self.bus.log("warn", "không đóng được quảng cáo -> escalate về Home"
+                             + (f" · mẫu khó {ten}" if ten else ""))
+        self.act.home_gesture(win, label="bước 5 escalate")
         self._goto(BotState.SYNC, "escalate")
 
     def _state_stuck(self, res, win, bgr) -> None:
@@ -611,6 +713,7 @@ class BotEngine:
                             w=f.win.w, h=f.win.h) if f else None),
             "frame_id": f.id if f else None,
             "taps_per_min": self.guard.taps_per_min(),
+            "samples": self.samples.written,
             "classify": (dict(kind=self.last_classify.kind.value,
                               reason=self.last_classify.reason,
                               hf=round(self.last_classify.hf, 2))
