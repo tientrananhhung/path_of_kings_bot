@@ -165,7 +165,17 @@ class AdCloser:
                 c.blocked, c.block_reason = True, "size"
             elif side_range and not self._gate_side(c, side_range):
                 c.blocked, c.block_reason = True, "side"
-            elif not self._gate_content(c, bgr):
+            elif c.origin != "yolo" and not self._gate_content(c, bgr):
+                # KHÔNG áp cho tầng 2c. Cửa này đo cho Florence-2, sinh ra để
+                # chặn nó bịa box trên vùng nền trống — một model tả ảnh đời
+                # thường thì hay làm vậy. Detector tự train thì không.
+                #
+                # Và nó KHÔNG tách nổi hai thứ trên ảnh thật (end-card nền xám
+                # phẳng của quảng cáo video):
+                #     nút ▶▶| THẬT      2.52
+                #     nền tối trống     2.34
+                # chênh 0.18. Hạ ngưỡng để nhận nút thì nhận luôn nền trống.
+                # Dùng sai công cụ, không phải sai ngưỡng.
                 c.blocked, c.block_reason = True, "empty_area"
             else:
                 ok, near = self._gate_blocklist(c, texts)

@@ -43,6 +43,15 @@ SEED = {
     # mờ ở góc trên phải. Không phải ✕ nên close_icon mù; Florence-2 thấy
     # nhưng box 73x40 lệch tâm 15pt và bị cửa _gate_side chặn.
     "20260830-162622-61363.png": [(SKIP_BUTTON, 373, 135, 30, 30)],
+
+    # Nút ▶▶| trong vòng tròn xám ở (376,122) — end-card của quảng cáo video.
+    # Cả ba tầng đều mù: close_icon chỉ biết dấu ✕, YOLO chưa từng thấy mẫu
+    # nào, Florence-2 không trả gì. Một trong bốn ảnh dưới đây là mẫu `fail`
+    # do chính bot lưu lại lúc bó tay — đúng loại mẫu quý nhất.
+    "20260830-173403-8821.png": [(SKIP_BUTTON, 376, 122, 28, 28)],
+    "20260830-173214-5785.png": [(SKIP_BUTTON, 376, 122, 28, 28)],
+    "20260830-173102-302.png": [(SKIP_BUTTON, 376, 122, 28, 28)],
+    "ad_playable_skip.png": [(SKIP_BUTTON, 376, 122, 28, 28)],
 }
 # Ảnh bị gán nhãn SAI, phải vào tập ÂM chứ không được thành nhãn dương.
 #
@@ -70,14 +79,30 @@ def thu_thap() -> dict[str, list[tuple]]:
     ra: dict[str, list[tuple]] = {}
     seen_hash: set[str] = set()
 
+    # Nhãn chỉ tay phải bám theo NỘI DUNG ẢNH, không phải tên file. Bẫy đã gặp:
+    # tests/fixtures/ad_playable_skip.png trùng byte với
+    # data/captures/20260828-155606-8144.png. Bản capture được duyệt trước,
+    # close_icon không dò ra gì nên nó không có nhãn — nhưng hash đã bị ghi
+    # nhận, thế là bản fixture mang nhãn SEED bị khử trùng lặp vứt đi. Mất
+    # nhãn mà không có gì báo.
+    import hashlib
+    seed_hash: dict[str, list[tuple]] = {}
+    for ten, nhan in SEED.items():
+        for thu_muc in ("data/captures", "tests/fixtures", "data/samples"):
+            f = ROOT / thu_muc / ten
+            if f.exists():
+                im = cv2.imread(str(f))
+                if im is not None:
+                    seed_hash[hashlib.md5(im.tobytes()).hexdigest()] = nhan
+
     anh = sorted((ROOT / "data" / "captures").glob("*.png")) + \
-        sorted((ROOT / "tests" / "fixtures").glob("*.png"))
+        sorted((ROOT / "tests" / "fixtures").glob("*.png")) + \
+        sorted((ROOT / "data" / "samples").glob("*.png"))
     for p in anh:
         img = cv2.imread(str(p))
         if img is None:
             continue
         # captures và fixtures trùng nhau nhiều — khử theo nội dung ảnh
-        import hashlib
         h = hashlib.md5(img.tobytes()).hexdigest()
         if h in seen_hash:
             continue
@@ -87,8 +112,8 @@ def thu_thap() -> dict[str, list[tuple]]:
         t = t.get("tag") if isinstance(t, dict) else t
         hh, ww = img.shape[:2]
 
-        if p.name in SEED:
-            ra[str(p)] = list(SEED[p.name])
+        if h in seed_hash:                        # khớp theo NỘI DUNG
+            ra[str(p)] = list(seed_hash[h])
             continue
         if la_man_game(p.name, t):
             ra[str(p)] = []                       # nhãn ÂM
@@ -108,6 +133,8 @@ def thu_thap() -> dict[str, list[tuple]]:
             if d.get("outcome") != "hit" or not d.get("box"):
                 continue
             img_p = ROOT / "data" / "samples" / d["image"]
+            if d["image"] in SEED:
+                continue                          # đã có nhãn chỉ tay ở trên
             if d["image"] in CHAC_CHAN_LA_GAME:
                 ra[str(img_p)] = []               # nhãn ÂM, xem chú thích ở trên
             elif img_p.exists():
