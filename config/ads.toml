@@ -1,5 +1,14 @@
 # Tầng C — pipeline đóng quảng cáo
-min_watch_seconds = 5.0
+# TRẦN thời gian ngồi xem, không phải giấc ngủ cố định: về tới màn game là ra
+# ngay (xem `_state_ad_watching`).
+# Vì sao 120s chứ không phải 5s — bug đã gặp, phiên 20260830-081318: chờ 5s rồi
+# vào quét trong khi quảng cáo CÒN ĐANG TẢI (OCR ra 4 chữ), bước 3 tap ứng viên
+# VLM ở (0.906,0.150) -> mở thẳng App Store, kẹt 45s, phải escalate + 5 cú vuốt
+# Home mới thoát. Một cú tap sớm tốn 60 giây.
+# Nhiều quảng cáo còn hiện nút đóng NGAY nhưng đang tắt, quanh nó là vòng tròn
+# đếm giờ — vòng tròn là ĐỒ HOẠ, `countdown_left()` đọc chữ nên không thấy.
+# TIMEOUTS[AD_WATCHING] trong states.py phải lớn hơn số này.
+min_watch_seconds = 120.0
 rescan_interval_s = 2.0
 rescan_max_s      = 45.0
 edge_band_pct     = 0.15    # cửa hình học: tâm phải nằm trong dải này

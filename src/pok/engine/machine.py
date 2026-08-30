@@ -443,10 +443,54 @@ class BotEngine:
                 return
         self._goto(BotState.GAME_PLAY, "không còn thấy nút thưởng")
 
+    def _back_to_game(self, res, bgr) -> str | None:
+        """Bằng chứng DƯƠNG là đã về lại màn game, hoặc None.
+
+        `classify == GAME` KHÔNG đủ: nó chỉ là nhánh mặc định "không khớp màn
+        hệ thống nào", nên một frame quảng cáo lạ cũng ra GAME. Ba bằng chứng:
+          1. đang ở Home Screen
+          2. có luật tầng A nào khớp -> luật chính là chữ ký của màn game
+          3. phash khớp màn ngay trước khi bấm vào quảng cáo
+
+        Dùng chung cho AD_WATCHING và AD_CLOSING — hai chỗ dùng hai tiêu chuẩn
+        khác nhau là công thức tạo vòng lặp (đã xảy ra thật).
+        """
+        if res.kind is ScreenKind.HOME:
+            return "về Home Screen"
+        low = " | ".join(t.text.lower() for t in res.texts)
+        if self.rules.evaluate(bgr, 0.0, low, ignore_enabled=True,
+                               ignore_cooldown=True,
+                               texts=res.texts) is not None:
+            return "có luật tầng A khớp"
+        if self._pre_ad_hash is not None:
+            d = cheap.phash_distance(cheap.phash(bgr), self._pre_ad_hash)
+            if d <= 6:
+                return f"phash khớp màn trước quảng cáo (d={d})"
+        return None
+
     def _state_ad_watching(self, res, win, bgr) -> None:
+        """Ngồi xem cho hết quảng cáo. `min_watch_seconds` là TRẦN, không phải
+        giấc ngủ cố định — về tới màn game thì ra ngay.
+
+        Vì sao trần phải dài: bug đã gặp (phiên data/sessions/20260830-081318).
+        Chờ đúng 5 giây rồi vào quét trong khi quảng cáo còn ĐANG TẢI (OCR đọc
+        được 4 chữ). Bước 3 tap ứng viên VLM ở rel (0.906,0.150) -> mở thẳng
+        App Store, kẹt 45 giây, phải escalate + 5 cú vuốt Home mới thoát. Một
+        cú tap sớm tốn 60 giây.
+
+        Nhiều quảng cáo hiện nút đóng NGAY nhưng đang tắt, quanh nó là vòng
+        tròn đếm thời gian — vòng tròn đó là đồ hoạ, `countdown_left()` đọc chữ
+        nên không thấy. Chờ đủ lâu là cách duy nhất hiện có để không tap vào nó.
+        """
+        back = self._back_to_game(res, bgr)
+        if back:
+            self.stats.note_close("step0")
+            self.guard.clear_stuck()
+            self._goto(BotState.GAME_PLAY, f"quảng cáo đã đóng khi đang xem: {back}")
+            return
         min_watch = float(self.cfg.ads.get("min_watch_seconds", 5.0))
         if self.elapsed >= min_watch:
-            self._goto(BotState.AD_CLOSING, f"đã chờ {min_watch}s")
+            self._goto(BotState.AD_CLOSING, f"đã xem đủ {min_watch:.0f}s")
 
     def _state_ad_closing(self, res, win, bgr) -> None:
         a = self.attempt
@@ -458,25 +502,7 @@ class BotEngine:
 
         # KHÔNG thoát khi thấy APPSTORE: trang cài app là một phần của quảng
         # cáo, cứ quét tìm nút đóng tiếp. Chỉ coi là xong khi thấy lại màn game.
-        # Thoát AD_CLOSING cần BẰNG CHỨNG DƯƠNG là đã về game.
-        # `classify == GAME` KHÔNG đủ: nó chỉ là nhánh mặc định "không khớp màn
-        # hệ thống nào", nên một frame quảng cáo lạ cũng ra GAME và bot sẽ tưởng
-        # đã đóng xong. Hai bằng chứng dương:
-        #   1. có luật tầng A nào khớp  -> luật chính là chữ ký của màn game
-        #   2. phash khớp màn ngay trước khi vào quảng cáo -> game trả về chỗ cũ
-        back = None
-        if res.kind is ScreenKind.HOME:
-            back = "về Home Screen"
-        else:
-            low_now = " | ".join(t.text.lower() for t in res.texts)
-            if self.rules.evaluate(bgr, 0.0, low_now, ignore_enabled=True,
-                                   ignore_cooldown=True,
-                                   texts=res.texts) is not None:
-                back = "có luật tầng A khớp"
-            elif self._pre_ad_hash is not None:
-                d = cheap.phash_distance(cheap.phash(bgr), self._pre_ad_hash)
-                if d <= 6:
-                    back = f"phash khớp màn trước quảng cáo (d={d})"
+        back = self._back_to_game(res, bgr)
         if back:
             self.stats.note_close(f"step{a.step}")
             self.guard.clear_stuck()

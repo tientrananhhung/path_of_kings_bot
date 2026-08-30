@@ -254,6 +254,21 @@ Cảnh báo: ngưỡng `_gate_side` **[20,50]** được đo dưới chế độ
 130×130). Dưới chế độ mới, nút thật đo được là 26×28, 30×34 và **một ✕ thật 18×18 bị chặn**
 vì dưới ngưỡng 20. Ca đó tầng 2b vẫn bắt được nên chưa mất gì, nhưng ngưỡng này đáng đo lại.
 
+### `min_watch_seconds` là TRẦN, không phải giấc ngủ
+
+`AD_WATCHING` ngồi xem tối đa **120s**, nhưng thoát **ngay** khi có bằng chứng đã về màn
+game (`_back_to_game`, dùng chung với `AD_CLOSING`).
+
+Vì sao trần phải dài — phiên `data/sessions/20260830-081318`: chờ đúng 5 giây rồi vào quét
+trong khi quảng cáo **còn đang tải** (OCR ra 4 chữ). Bước 3 tap ứng viên VLM ở
+rel (0.906, 0.150) → **mở thẳng App Store**, kẹt 45 giây, phải escalate + 5 cú vuốt Home.
+Một cú tap sớm tốn **60 giây**.
+
+Nhiều quảng cáo hiện nút đóng **ngay** nhưng đang tắt, quanh nó là vòng tròn đếm giờ. Vòng
+tròn là **đồ hoạ**, `countdown_left()` đọc chữ nên không thấy — chờ đủ lâu là cách duy nhất
+hiện có. `TIMEOUTS[AD_WATCHING]` (150s) **phải lớn hơn** `min_watch_seconds`, nếu không
+STUCK cắt ngang. Xem [tests/test_ad_watching_tran.py](tests/test_ad_watching_tran.py).
+
 ### Đã bỏ: blind tap
 
 Sáu điểm tap đoán ở bước 5 đã bỏ hẳn. Đo trên 57 phiên: nó đóng được **1/45** lần, đổi lại
