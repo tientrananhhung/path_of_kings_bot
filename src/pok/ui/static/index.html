@@ -64,7 +64,8 @@
       </div>
     </div>
     <div class="card">
-      <h3>Log <button id="btn-clearlog" class="mini">xoá</button></h3>
+      <h3>Log <button id="btn-clearlog" class="mini">xoá</button>
+        <span class="hint" id="log-mode"></span></h3>
       <div id="log" class="log"></div>
     </div>
   </section>
@@ -172,6 +173,19 @@
       <div class="card">
         <h3>Doctor <button id="doc-reload" class="mini">chạy lại</button></h3>
         <table class="kv" id="kv-doctor"></table>
+      </div>
+      <div class="card">
+        <h3>Log</h3>
+        <label class="inline"><input type="checkbox" id="opt-syslog">
+          Hiển thị log hệ thống</label>
+        <p class="hint">Bỏ tích (mặc định): chỉ hiện thứ bot <b>làm</b> và thứ
+          <b>sai</b> — đổi state, tap/swipe, ứng viên bị chặn, cảnh báo, lỗi.<br>
+          Tích: hiện thêm chi tiết chẩn đoán — kết quả <code>classify</code> mỗi
+          lần OCR, <code>▶ TAP</code>/<code>▶ SWIPE</code> kèm toạ độ ngay trước
+          khi chuột chạm màn, "màn hình đã đổi kể từ lúc OCR", luật khớp mà
+          không hành động được.</p>
+        <p class="hint">Dù ẩn hay hiện, <b>mọi</b> event vẫn được ghi đủ vào
+          <code>data/sessions/&lt;ts&gt;/events.jsonl</code>.</p>
       </div>
       <div class="card">
         <h3>Stream</h3>

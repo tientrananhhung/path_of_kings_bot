@@ -86,7 +86,7 @@ def test_cửa_kích_thước_tương_đối_chặn_box_phủ_hết_crop(closer)
     """
     box = 120
     c = Candidate(cx=380, cy=60, w=box, h=box, label="close button", origin="vlm")
-    kept = closer.filter_candidates([c], bgr(), [], in_corner_crop=True,
+    kept = closer.filter_candidates([c], bgr(), [], in_crop=True,
                                     crop_area=float(box * box))
     assert kept == []
     assert c.block_reason == "size"
@@ -116,10 +116,10 @@ def test_cửa_nền_trống_dùng_ảnh_thật(closer):
     c2 = AdCloser(cfg, vlm=None, bus=FakeBus())
 
     trong = Candidate(cx=341, cy=106, w=20, h=20, label="close button", origin="vlm")
-    assert c2.filter_candidates([trong], img, [], in_corner_crop=True,
+    assert c2.filter_candidates([trong], img, [], in_crop=True,
                                 crop_area=130.0 * 130) == []
     assert trong.block_reason == "empty_area"
 
     that = Candidate(cx=32, cy=122, w=13, h=12, label="✕", origin="icon:tl")
-    assert len(c2.filter_candidates([that], img, [], in_corner_crop=True,
+    assert len(c2.filter_candidates([that], img, [], in_crop=True,
                                     crop_area=130.0 * 130)) == 1

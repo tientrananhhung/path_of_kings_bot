@@ -90,7 +90,7 @@ Apple Vision trả bbox gốc **góc dưới-trái, y hướng lên** — [ocr.p
 |---|---|---|---|
 | A numpy/OpenCV | [cheap.py](src/pok/perception/cheap.py) | mỗi tick (`update_idle`, rule engine) | < 5ms |
 | B Apple Vision OCR | [ocr.py](src/pok/perception/ocr.py) | qua `classify()`, giãn cách theo state | 62ms |
-| C Florence-2 | [vlm.py](src/pok/perception/vlm.py) | chỉ ở `AD_CLOSING` bước 3, trên crop góc | 531ms |
+| C Florence-2 | [vlm.py](src/pok/perception/vlm.py) | chỉ ở `AD_CLOSING` bước 3, trên **dải 25% trên cùng** | ~600ms |
 
 `BotEngine._need_classify()` là chốt chặn tầng B: 2.0s/lần trong `GAME_PLAY`, 0.8s ở
 state khác. Kết quả cache trong `self.last_classify` và dùng lại cho mọi handler trong
@@ -113,6 +113,21 @@ Florence-2 (cả `base` và `base-ft`) khi nhận **cả ảnh** đã thực s�
 - Ngưỡng theo crop là bắt buộc, không phải phòng xa: khi không thấy gì Florence-2 trả
   box phủ gần hết crop, và với `corner_box` nhỏ hơn 130 thì box đó lọt cửa tuyệt đối.
 - Candidate bị chặn vẫn publish event `candidate_blocked` để web vẽ đỏ gạch chéo.
+
+**Bán kính blocklist khác nhau theo độ mạnh bằng chứng**, và đo tới **cạnh** hộp chữ chứ
+không phải tâm-cộng-nửa-hộp. Bug đã gặp (phiên `20260830-080353`, bot đứng im 46 giây trên
+quảng cáo có ✕ to rõ ở góc): `classify` dùng chính dấu ✕ (372,68) làm bằng chứng "đây là
+quảng cáo", rồi `filter_candidates` vứt đúng dấu ✕ đó vì chữ `PLAY NOW` ở gần. Cạnh hộp chữ
+cách 38.8pt, nhưng luật cũ cộng nửa chiều rộng hộp (94/2) vào bán kính 40 thành **87pt**.
+Chiều dài một chuỗi chữ không nói gì về vị trí nút bấm.
+
+| nguồn ứng viên | bán kính | vì sao |
+|---|---|---|
+| `vlm:*`, `ocr` | 40pt | model đoán — Florence-2 từng gán nhãn nút Install là "close button" |
+| `icon` (tầng 2b) | 20pt | bằng chứng **hình học**, không phải đoán |
+
+Điểm nằm **trong** hộp chữ thì chặn bất kể nguồn. Khoá trong
+[tests/test_blocklist_ban_kinh.py](tests/test_blocklist_ban_kinh.py).
 
 [tests/test_ad_gates.py](tests/test_ad_gates.py) khoá các ca này lại. Đổi ngưỡng trong
 `config/ads.toml` mà test đỏ thì ngưỡng sai, không phải test sai.
@@ -152,6 +167,27 @@ Bằng chứng phải là luật engine **thật sự hành động được**: 
 không tính. Nếu không, bot đứng im trong `GAME_PLAY` — state **duy nhất không có timeout**.
 Luật đang cooldown thì vẫn tính (màn hình có đổi đâu). Xem
 [tests/test_game_rule_beats_ad.py](tests/test_game_rule_beats_ad.py).
+
+### Luật text: keyword trên HUD phải chặn bằng `y_min`/`y_max`
+
+`rules.evaluate` khớp luật text bằng **substring trên toàn bộ chữ của màn hình**. Bug đã
+gặp thật: nav bar đáy màn hình của game đọc ra
+
+    ... | tauern | shop | pup raid | bosses | rank
+
+nên luật `contains = "pup raid"` (priority 2, swipe TRÁI) khớp ở **mọi màn**, kể cả lúc
+nhân vật đang chạy — bot quẹt trái không ngừng. OCR đọc `PVP` thành `PUP` nên đừng ngạc
+nhiên khi thấy cả hai cách viết trong config.
+
+Cách chặn: `when.y_max` (và `y_min`) — chữ phải nằm trong dải dọc đó. Trên dialog PVP RAID
+thật, tiêu đề ở `y/h = 0.192`, nav bar ở ~0.95, nên `y_max = 0.5` giữ dialog và loại nav
+bar. Không khai báo thì giữ nguyên hành vi cũ (khớp cả màn).
+
+Khai báo vùng thì `evaluate` **phải** được truyền `texts=` — không có `TextBox` thì không
+biết chữ nằm đâu, và luật sẽ không bao giờ khớp.
+`WHEN_FIELDS.text` trong [app.js](src/pok/ui/static/app.js) phải liệt kê `y_min`/`y_max`,
+nếu không lần Lưu kế tiếp từ web UI sẽ xoá sạch chúng.
+Xem [tests/test_rule_vung_doc.py](tests/test_rule_vung_doc.py).
 
 ### Dấu ✕ sát mép — bằng chứng phân loại thứ ba
 
@@ -194,7 +230,36 @@ Nay `blind_tap.at` là rel theo **màn hình thật**, `blind_points()` lo quy �
 sổ cho `Actuator`, và blind tap **cũng phải qua cửa blocklist** — nó là điểm đoán, không
 có gì bảo đảm dưới nó không phải nút Install.
 
-### Tầng C — độ chính xác đo được là 14%, đừng tin nó
+### Tầng C — một lần quét dải 25% trên cùng, prompt `"circle button"`
+
+Không còn quét 4 ô góc 130×130. Lý do bỏ: nút đóng không nhất thiết sát góc — ✕ của
+App Store sheet ở (46,145) nằm **ngoài** ô góc nên tầng C không bao giờ nhìn thấy. Mọi nút
+đóng đã đo đều nằm trong 17% trên cùng (`y/h`: 0.161 · 0.135 · 0.101 · 0.076 · 0.137), nên
+dải 25% giữ trọn 5/5 mà **1 lần gọi ~0.6s thay cho 4 lần ~4.2s**.
+
+Prompt: **`"circle button"`, một cái duy nhất, và cố ý KHÔNG chứa chữ "close"**. Đo trên
+dải 25% của 6 ảnh, mỗi prompt ~580ms:
+
+| prompt | trúng |
+|---|---|
+| `close button` / `close icon` / `close` / `skip button` | **0/6** — trả box phủ trọn crop = "không thấy gì" |
+| `circular button` | 2/3 |
+| **`circle button`** | **3/3** |
+
+Florence-2 train trên ảnh đời thường nên **không có khái niệm "nút đóng"**; tả hình dạng
+thì nó nhìn ra, tả chức năng thì không. Giá phải trả: nó cũng chỉ ra nút bánh răng của game
+ở (44,86) 32×32 — chấp nhận được vì `_state_ad_closing` thoát ngay khi có luật tầng A khớp.
+
+Cảnh báo: ngưỡng `_gate_side` **[20,50]** được đo dưới chế độ CŨ (2 prompt, crop góc
+130×130). Dưới chế độ mới, nút thật đo được là 26×28, 30×34 và **một ✕ thật 18×18 bị chặn**
+vì dưới ngưỡng 20. Ca đó tầng 2b vẫn bắt được nên chưa mất gì, nhưng ngưỡng này đáng đo lại.
+
+### Đã bỏ: blind tap
+
+Sáu điểm tap đoán ở bước 5 đã bỏ hẳn. Đo trên 57 phiên: nó đóng được **1/45** lần, đổi lại
+là 6 cú tap mù vào màn quảng cáo. Hết `rescan_max_s` thì escalate về Home luôn.
+
+### Số cũ giữ lại làm mốc — độ chính xác 14% của chế độ crop góc
 
 Chạy Florence-2 trên 7 màn × 2 prompt × 4 góc: **22 ứng viên lọt đủ 4 cửa cũ, chỉ 3 cái
 đúng**. Trong phiên thật nó tap (29,115) và (322,67) trong khi nút skip ở (376,123).

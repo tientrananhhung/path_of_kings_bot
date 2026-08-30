@@ -7,7 +7,9 @@ enters_ad = false
 
 [rule.when]
 kind = "text"
-contains = "raid"
+contains = "pvp raid"
+y_max = 0.5
+y_min = 0
 
 [rule.do]
 action = "swipe"
@@ -19,7 +21,7 @@ to = [
     0.05,
     0.78,
 ]
-duration_ms = 400
+duration_ms = 500
 steps = 24
 hold_end_ms = 140
 
@@ -51,6 +53,8 @@ enters_ad = false
 [rule.when]
 kind = "text"
 contains = "new gear found"
+y_min = 0
+y_max = 0
 
 [rule.do]
 action = "swipe"
@@ -62,7 +66,7 @@ to = [
     0.05,
     0.607,
 ]
-duration_ms = 400
+duration_ms = 500
 steps = 24
 hold_end_ms = 140
 
@@ -76,6 +80,8 @@ enters_ad = false
 [rule.when]
 kind = "text"
 contains = "ritual trouble"
+y_min = 0
+y_max = 0
 
 [rule.do]
 action = "tap_text"
@@ -92,6 +98,8 @@ enters_ad = false
 [rule.when]
 kind = "text"
 contains = "ritual trouble"
+y_min = 0
+y_max = 0
 
 [rule.do]
 action = "tap_text"
@@ -108,6 +116,8 @@ enters_ad = false
 [rule.when]
 kind = "text"
 contains = "hero summon"
+y_min = 0
+y_max = 0
 
 [rule.do]
 action = "tap_text"
@@ -124,6 +134,8 @@ enters_ad = false
 [rule.when]
 kind = "text"
 contains = "just greg"
+y_min = 0
+y_max = 0
 
 [rule.do]
 action = "tap_text"
@@ -140,6 +152,8 @@ enters_ad = false
 [rule.when]
 kind = "text"
 contains = "just greg"
+y_min = 0
+y_max = 0
 
 [rule.do]
 action = "tap_text"
@@ -156,6 +170,8 @@ enters_ad = false
 [rule.when]
 kind = "text"
 contains = "empyreal set"
+y_min = 0
+y_max = 0
 
 [rule.do]
 action = "swipe"
@@ -167,7 +183,7 @@ to = [
     0.05,
     0.797,
 ]
-duration_ms = 400
+duration_ms = 500
 steps = 24
 hold_end_ms = 140
 
@@ -181,6 +197,8 @@ enters_ad = true
 [rule.when]
 kind = "text"
 contains = "upgrade your gear"
+y_min = 0
+y_max = 0
 
 [rule.do]
 action = "swipe"
@@ -192,7 +210,7 @@ to = [
     0.95,
     0.786,
 ]
-duration_ms = 400
+duration_ms = 500
 steps = 24
 hold_end_ms = 140
 
@@ -206,6 +224,8 @@ enters_ad = false
 [rule.when]
 kind = "text"
 contains = "wrong time period"
+y_min = 0
+y_max = 0
 
 [rule.do]
 action = "tap_text"
@@ -222,6 +242,8 @@ enters_ad = false
 [rule.when]
 kind = "text"
 contains = "wrong time period"
+y_min = 0
+y_max = 0
 
 [rule.do]
 action = "tap_text"
@@ -238,6 +260,8 @@ enters_ad = false
 [rule.when]
 kind = "text"
 contains = "mythrion set"
+y_min = 0
+y_max = 0
 
 [rule.do]
 action = "swipe"
@@ -249,7 +273,7 @@ to = [
     0.05,
     0.797,
 ]
-duration_ms = 400
+duration_ms = 500
 
 [[rule]]
 name = "HELLO DOWN THERE -> chọn Pray"
@@ -261,6 +285,8 @@ enters_ad = false
 [rule.when]
 kind = "text"
 contains = "hello down there"
+y_min = 0
+y_max = 0
 
 [rule.do]
 action = "tap_text"
@@ -277,6 +303,8 @@ enters_ad = false
 [rule.when]
 kind = "text"
 contains = "hello down there"
+y_min = 0
+y_max = 0
 
 [rule.do]
 action = "tap_text"
@@ -293,6 +321,8 @@ enters_ad = false
 [rule.when]
 kind = "text"
 contains = "continue"
+y_min = 0
+y_max = 0
 
 [rule.do]
 action = "tap_text"
@@ -309,6 +339,8 @@ enters_ad = false
 [rule.when]
 kind = "text"
 contains = "special encounter"
+y_min = 0
+y_max = 0
 
 [rule.do]
 action = "swipe"
@@ -320,7 +352,7 @@ to = [
     0.95,
     0.786,
 ]
-duration_ms = 400
+duration_ms = 500
 
 [[rule]]
 name = "CLAN CONTRACTS -> chọn Cancel"
@@ -332,6 +364,8 @@ enters_ad = false
 [rule.when]
 kind = "text"
 contains = "clan contracts"
+y_min = 0
+y_max = 0
 
 [rule.do]
 action = "tap_text"
@@ -348,6 +382,8 @@ enters_ad = false
 [rule.when]
 kind = "text"
 contains = "arrow to the knee"
+y_min = 0
+y_max = 0
 
 [rule.do]
 action = "tap_text"
@@ -364,6 +400,8 @@ enters_ad = false
 [rule.when]
 kind = "text"
 contains = "arrow to the knee"
+y_min = 0
+y_max = 0
 
 [rule.do]
 action = "tap_text"
@@ -380,6 +418,8 @@ enters_ad = false
 [rule.when]
 kind = "text"
 contains = "you shall not pass"
+y_min = 0
+y_max = 0
 
 [rule.do]
 action = "tap_text"
@@ -396,6 +436,8 @@ enters_ad = false
 [rule.when]
 kind = "text"
 contains = "you shall not pass"
+y_min = 0
+y_max = 0
 
 [rule.do]
 action = "tap_text"
@@ -412,6 +454,8 @@ enters_ad = false
 [rule.when]
 kind = "text"
 contains = "solarius set"
+y_min = 0
+y_max = 0
 
 [rule.do]
 action = "swipe"
@@ -423,7 +467,7 @@ to = [
     0.05,
     0.797,
 ]
-duration_ms = 400
+duration_ms = 500
 
 [[rule]]
 name = "ROYAL TAX AUDIT -> chọn Smack"
@@ -435,6 +479,8 @@ enters_ad = false
 [rule.when]
 kind = "text"
 contains = "royal tax audit"
+y_min = 0
+y_max = 0
 
 [rule.do]
 action = "tap_text"
@@ -451,6 +497,8 @@ enters_ad = false
 [rule.when]
 kind = "text"
 contains = "runaway princess"
+y_min = 0
+y_max = 0
 
 [rule.do]
 action = "tap_text"
@@ -467,6 +515,8 @@ enters_ad = false
 [rule.when]
 kind = "text"
 contains = "runaway princess"
+y_min = 0
+y_max = 0
 
 [rule.do]
 action = "tap_text"
@@ -483,6 +533,8 @@ enters_ad = true
 [rule.when]
 kind = "text"
 contains = "gold blessing"
+y_min = 0
+y_max = 0
 
 [rule.do]
 action = "swipe"
@@ -494,7 +546,7 @@ to = [
     0.95,
     0.786,
 ]
-duration_ms = 400
+duration_ms = 500
 
 [[rule]]
 name = "WRONG DIMENSION -> chọn Help"
@@ -506,6 +558,8 @@ enters_ad = false
 [rule.when]
 kind = "text"
 contains = "wrong dimension"
+y_min = 0
+y_max = 0
 
 [rule.do]
 action = "tap_text"
@@ -522,6 +576,8 @@ enters_ad = false
 [rule.when]
 kind = "text"
 contains = "what to do with the lost soul"
+y_min = 0
+y_max = 0
 
 [rule.do]
 action = "swipe"
@@ -530,10 +586,10 @@ from = [
     0.786,
 ]
 to = [
-    0.95,
-    0.786,
+    0.05,
+    0.797,
 ]
-duration_ms = 400
+duration_ms = 500
 
 [[rule]]
 name = "KISS THE PRINCESS -> chọn Kiss"
@@ -545,6 +601,8 @@ enters_ad = false
 [rule.when]
 kind = "text"
 contains = "kiss the princess"
+y_min = 0
+y_max = 0
 
 [rule.do]
 action = "tap_text"
@@ -561,6 +619,8 @@ enters_ad = false
 [rule.when]
 kind = "text"
 contains = "kiss the princess"
+y_min = 0
+y_max = 0
 
 [rule.do]
 action = "tap_text"
@@ -577,6 +637,8 @@ enters_ad = false
 [rule.when]
 kind = "text"
 contains = "free balloon"
+y_min = 0
+y_max = 0
 
 [rule.do]
 action = "tap_text"
@@ -593,6 +655,8 @@ enters_ad = false
 [rule.when]
 kind = "text"
 contains = "free balloon"
+y_min = 0
+y_max = 0
 
 [rule.do]
 action = "tap_text"
@@ -602,22 +666,218 @@ dy = 0
 [[rule]]
 name = "PRIMORDIA SET -> Swipe trái (SKIP)"
 enabled = true
-priority = 50
+priority = 32
 cooldown_s = 3
 enters_ad = false
 
 [rule.when]
 kind = "text"
-contains = "primordia sét"
+contains = "primordia set"
+y_min = 0
+y_max = 0
 
 [rule.do]
 action = "swipe"
 from = [
     0.5,
-    0.786,
+    0.797,
 ]
 to = [
-    0.95,
-    0.786,
+    0.05,
+    0.797,
 ]
 duration_ms = 220
+
+[[rule]]
+name = "LOST EXPLORER -> Chọn Lie"
+enabled = true
+priority = 33
+cooldown_s = 3
+enters_ad = false
+
+[rule.when]
+kind = "text"
+contains = "lost explorer"
+y_min = 0
+y_max = 0
+
+[rule.do]
+action = "tap_text"
+text = "lie"
+dy = 0
+
+[[rule]]
+name = "LOST EXPLORER -> Chọn COLLECT"
+enabled = true
+priority = 34
+cooldown_s = 3
+enters_ad = false
+
+[rule.when]
+kind = "text"
+contains = "lost explorer"
+y_min = 0
+y_max = 0
+
+[rule.do]
+action = "tap_text"
+text = "collect"
+dy = 0
+
+[[rule]]
+name = "PVP RAID -> swipe trái (Run)"
+enabled = true
+priority = 35
+cooldown_s = 3
+enters_ad = false
+
+[rule.when]
+kind = "text"
+contains = "pup raid"
+y_max = 0.5
+y_min = 0
+
+[rule.do]
+action = "swipe"
+from = [
+    0.5,
+    0.78,
+]
+to = [
+    0.05,
+    0.78,
+]
+duration_ms = 500
+
+[[rule]]
+name = "TREASURE PINATA -> Chọn Smack"
+enabled = true
+priority = 36
+cooldown_s = 3
+enters_ad = false
+
+[rule.when]
+kind = "text"
+contains = "TREASURE PIÑATA"
+y_min = 0
+y_max = 0
+
+[rule.do]
+action = "tap_text"
+text = "smack"
+dy = 0
+
+[[rule]]
+name = "TREASURE PINATA -> Chọn COLLECT"
+enabled = true
+priority = 37
+cooldown_s = 3
+enters_ad = false
+
+[rule.when]
+kind = "text"
+contains = "TREASURE PIÑATA"
+y_min = 0
+y_max = 0
+
+[rule.do]
+action = "tap_text"
+text = "collect"
+dy = 0
+
+[[rule]]
+name = "ASTRYX SET -> swipe trái (SKIP)"
+enabled = true
+priority = 38
+cooldown_s = 3
+enters_ad = false
+
+[rule.when]
+kind = "text"
+contains = "astryx set"
+y_min = 0
+y_max = 0
+
+[rule.do]
+action = "swipe"
+from = [
+    0.5,
+    0.78,
+]
+to = [
+    0.05,
+    0.78,
+]
+duration_ms = 500
+
+[[rule]]
+name = "BARREL BANDIT -> Chọn Scare"
+enabled = true
+priority = 39
+cooldown_s = 3
+enters_ad = false
+
+[rule.when]
+kind = "text"
+contains = "barrel bandit"
+y_min = 0
+y_max = 0
+
+[rule.do]
+action = "tap_text"
+text = "scare"
+dy = 0
+
+[[rule]]
+name = "BARREL BANDIT -> Chọn COLLECT"
+enabled = true
+priority = 40
+cooldown_s = 3
+enters_ad = false
+
+[rule.when]
+kind = "text"
+contains = "barrel bandit"
+y_min = 0
+y_max = 0
+
+[rule.do]
+action = "tap_text"
+text = "collect"
+dy = 0
+
+[[rule]]
+name = "ROAD CLOSED -> Chọn Kiss"
+enabled = true
+priority = 41
+cooldown_s = 3
+enters_ad = false
+
+[rule.when]
+kind = "text"
+contains = "road closed"
+y_min = 0
+y_max = 0
+
+[rule.do]
+action = "tap_text"
+text = "kiss"
+dy = 0
+
+[[rule]]
+name = "ROAD CLOSED -> Chọn COLLECT"
+enabled = true
+priority = 42
+cooldown_s = 3
+enters_ad = false
+
+[rule.when]
+kind = "text"
+contains = "road closed"
+y_min = 0
+y_max = 0
+
+[rule.do]
+action = "tap_text"
+text = "collect"
+dy = 0

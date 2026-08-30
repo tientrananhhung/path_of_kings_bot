@@ -100,7 +100,7 @@ class BotEngine:
         if self.vlm.enabled:
             # lần gọi VLM đầu mất ~12s (nạp + warm-up MPS) -> làm ở nền ngay bây
             # giờ, đừng để nó rơi vào lúc gặp quảng cáo đầu tiên
-            self.vlm.warm_size = int(self.cfg.ads.get("corner_box", 130))
+            self.vlm.warm_size = 224      # xấp xỉ dải 25% (394x213)
             self.vlm.prewarm(self.bus)
         self._stop.clear()
         self._paused = False
@@ -205,7 +205,7 @@ class BotEngine:
             if fresh is not None:
                 bgr, win = fresh.bgr, fresh.win
             self._classify_at = 0.0            # OCR lại ngay trong tick này
-            self.bus.log("info", "đã đưa cửa sổ iPhone lên trước")
+            self.bus.log("info", "đã đưa cửa sổ iPhone lên trước", sys=True)
 
         idle = self.rules.update_idle(bgr)
 
@@ -298,7 +298,7 @@ class BotEngine:
         # từng đưa thẳng bot vào AD_WATCHING (phiên data/sessions/20260830-050446).
         if nxt is BotState.AD_WATCHING:
             low = " | ".join(t.text.lower() for t in res.texts)
-            if self._rule_signature(bgr, low) is not None:
+            if self._rule_signature(bgr, low, res.texts) is not None:
                 nxt = BotState.GAME_PLAY
         if nxt:
             self.guard.clear_stuck()
@@ -308,7 +308,7 @@ class BotEngine:
         if self.dog.open_game(res, win, bgr):
             self._goto(BotState.SYNC, "đã tap icon game")
 
-    def _rule_signature(self, bgr, low: str):
+    def _rule_signature(self, bgr, low: str, res_texts=None):
         """Có luật tầng A nào khớp không — luật chính là CHỮ KÝ của màn game.
 
         `classify` chỉ có tín hiệu yếu (keyword sát mép, dấu ✕ sát mép) nên nó
@@ -324,13 +324,13 @@ class BotEngine:
         state duy nhất KHÔNG có timeout.
         """
         return self.rules.evaluate(bgr, 0.0, low, ignore_cooldown=True,
-                                   skip=set(self._declined))
+                                   skip=set(self._declined), texts=res_texts)
 
     def _state_game(self, res, win, bgr, idle) -> None:
         h, w = bgr.shape[:2]
         low = " | ".join(t.text.lower() for t in res.texts)
         if res.kind is ScreenKind.AD:
-            sig = self._rule_signature(bgr, low)
+            sig = self._rule_signature(bgr, low, res.texts)
             if sig is None:
                 self.stats.ads_seen += 1
                 self._goto(BotState.AD_WATCHING, "phát hiện quảng cáo")
@@ -338,7 +338,8 @@ class BotEngine:
             if not self._said_ad_rule:
                 self._said_ad_rule = True
                 self.bus.log("info", f"classify ra AD ({res.reason}) nhưng luật "
-                                     f"{sig[0].name!r} khớp -> coi là màn game")
+                                     f"{sig[0].name!r} khớp -> coi là màn game",
+                             sys=True)
         if _match_word(low, REWARD_KEYWORDS):
             self._goto(BotState.REWARD_PROMPT, "thấy nút xem quảng cáo")
             return
@@ -357,14 +358,15 @@ class BotEngine:
                     self._said_stale = True
                     self.bus.log("info", f"màn hình đã đổi kể từ lúc OCR "
                                          f"(phash lệch {dist}) -> OCR lại, "
-                                         f"bỏ lượt hành động")
+                                         f"bỏ lượt hành động", sys=True)
                 return
 
         # Thử lần lượt: luật nào khớp nhưng không hành động được thì bỏ qua và
         # cho luật tiếp theo cơ hội, thay vì ăn mất lượt.
         skip: set[str] = set(self._declined)
         for _ in range(6):
-            hit = self.rules.evaluate(bgr, idle, low, skip=skip)
+            hit = self.rules.evaluate(bgr, idle, low, skip=skip,
+                                      texts=res.texts)
             if not hit:
                 return
             if self._apply_rule(hit[0], res, win, bgr, w, h):
@@ -394,7 +396,7 @@ class BotEngine:
                         if needle and needle in t.text.lower().strip()), None)
             if box is None:
                 self.bus.log("info", f"luật {rule.name!r}: OCR không thấy chữ "
-                                     f"{needle!r} -> thử luật khác")
+                                     f"{needle!r} -> thử luật khác", sys=True)
                 return False
             tap_text_rel = (box.cx / w,
                             box.cy / h + float(do.get("dy", 0.0)))
@@ -468,7 +470,8 @@ class BotEngine:
         else:
             low_now = " | ".join(t.text.lower() for t in res.texts)
             if self.rules.evaluate(bgr, 0.0, low_now, ignore_enabled=True,
-                                   ignore_cooldown=True) is not None:
+                                   ignore_cooldown=True,
+                                   texts=res.texts) is not None:
                 back = "có luật tầng A khớp"
             elif self._pre_ad_hash is not None:
                 d = cheap.phash_distance(cheap.phash(bgr), self._pre_ad_hash)
@@ -547,17 +550,14 @@ class BotEngine:
                          frame_id=fid)
             return
 
-        # --- bước 3: VLM trên crop góc ---
-        corners = self.closer.corners()
-        if self.vlm.enabled and a.corner_idx < len(corners):
+        # --- bước 3: VLM trên DẢI 25% TRÊN CÙNG (không còn quét 4 góc) ---
+        if self.vlm.enabled:
             a.step = 3
-            corner = corners[a.corner_idx]
-            a.corner_idx += 1
             job = self.worker.run_sync(
-                lambda: self.closer.step_vlm_corner(bgr, res.texts, corner),
-                name=f"vlm:{corner}", timeout=25.0)
+                lambda: self.closer.step_vlm_top(bgr, res.texts),
+                name="vlm:top", timeout=25.0)
             if job.error:
-                self.bus.log("warn", f"VLM lỗi ({corner}): {job.error}")
+                self.bus.log("warn", f"VLM lỗi: {job.error}")
                 return
             for c in (job.result or []):
                 rel = (c.cx / w, c.cy / h)
@@ -565,29 +565,20 @@ class BotEngine:
                     continue
                 a.tried_points.append(rel)
                 self.act.tap(rel, win, source="ad_step",
-                             label=f"bước 3 VLM {corner} ({job.ms:.0f}ms)",
+                             label=f"bước 3 VLM dải trên ({job.ms:.0f}ms)",
                              frame_id=fid)
                 return
-            return
 
         # --- bước 4: quét lại tới hết thời gian ---
         if a.scanning_elapsed() < max_s:
             a.step = 4
-            a.corner_idx = 0          # vòng lại các góc (ca X hiện sau đếm ngược)
             return
 
-        # --- bước 5: blind tap ---
-        blinds = self.closer.blind_points(bgr, res.texts)
-        if a.blind_idx < len(blinds):
-            a.step = 5
-            rel = blinds[a.blind_idx]
-            a.blind_idx += 1
-            self.act.tap(rel, win, source="blind_tap",
-                         label=f"bước 5 blind tap {rel}", frame_id=fid)
-            return
-
-        # --- bước 6: escalate ---
-        a.step = 6
+        # --- bước 5: escalate ---
+        # Blind tap (6 điểm đoán) đã bỏ: đo trên 57 phiên, nó đóng được đúng
+        # 1/45 lần, đổi lại là 6 cú tap mù vào màn quảng cáo. Hết giờ quét thì
+        # về Home luôn, đừng bắn bừa.
+        a.step = 5
         self.stats.ads_failed += 1
         self.bus.log("warn", "không đóng được quảng cáo -> escalate về Home")
         self.act.home_gesture(win, label="bước 6 escalate")

@@ -34,11 +34,9 @@ CFG = {
     "min_edge_density": 0.0,        # cô lập cửa kích thước
     "edge_band_pct": 0.15,
     "max_area_pct": 0.04,
-    "corner_box": 130,
     "blocklist": ["install", "cài đặt", "download", "tải"],
     "close_keywords": ["skip", "đóng", "close"],
     "vlm": {"corners": ["tr", "tl"], "min_side_pt": 20, "max_side_pt": 50},
-    "blind_tap": [{"at": [0.93, 0.10]}, {"at": [0.07, 0.13]}],
 }
 W, H = 410, 898
 CROP_AREA = 130.0 * 130.0
@@ -67,7 +65,7 @@ def cand(side, cx=376, cy=122):
 
 def loc(closer, c):
     return closer.filter_candidates(
-        [c], np.zeros((H, W, 3), dtype=np.uint8), [], in_corner_crop=True,
+        [c], np.zeros((H, W, 3), dtype=np.uint8), [], in_crop=True,
         crop_area=CROP_AREA, side_range=(20.0, 50.0))
 
 
@@ -118,36 +116,8 @@ def test_không_truyền_side_range_thì_cửa_này_tắt(closer):
                   origin="vlm:tr")
     kept = closer.filter_candidates(
         [c], np.zeros((H, W, 3), dtype=np.uint8), [],
-        in_corner_crop=True, crop_area=CROP_AREA)
+        in_crop=True, crop_area=CROP_AREA)
     assert len(kept) == 1
 
 
 # ── blind tap ───────────────────────────────────────────────────────────────
-
-def test_blind_tap_quy_đổi_theo_màn_hình_thật_không_phải_cửa_sổ(closer):
-    """(0.93, 0.10) phải ra điểm trên MÀN HÌNH, không phải trên cửa sổ.
-
-    Theo cửa sổ: (381, 90). Theo màn hình (8,38,394,852): (374, 123) — đúng chỗ
-    nút skip thật (376,123) của quảng cáo playable đã đo.
-    """
-    img = cv2.imread(str(FIX / "ad_playable_skip.png"))
-    diem = closer.blind_points(img, [])
-    assert diem, "không còn điểm blind tap nào"
-    x, y = diem[0][0] * W, diem[0][1] * H
-    lech = ((x - 376) ** 2 + (y - 123) ** 2) ** 0.5
-    assert lech < 12, f"blind tap đầu tiên lệch {lech:.0f}pt — ({x:.0f},{y:.0f})"
-
-
-def test_blind_tap_bị_chặn_khi_rơi_gần_nút_tải(closer):
-    """Blind tap là điểm ĐOÁN, phải đi qua blocklist như mọi ứng viên khác.
-
-    Trên quảng cáo playable thật, điểm trái ở (35,149) cách chữ "Download"
-    của biểu tượng app chỉ ~37pt — nằm trong bán kính 40pt của cửa blocklist.
-    """
-    img = cv2.imread(str(FIX / "ad_playable_skip.png"))
-    texts = [TextBox(text="Download", conf=1.0, cx=51, cy=175, w=60, h=14)]
-    truoc = closer.blind_points(img, [])
-    sau = closer.blind_points(img, texts)
-    assert len(sau) < len(truoc), "blocklist không chặn được blind tap nào"
-    assert any(e["reason"] == "blocklist" and e["origin"] == "blind"
-               for e in closer.bus.events), "không publish event bị chặn"

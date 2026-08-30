@@ -132,16 +132,15 @@ def cmd_probe(cfg: Config) -> int:
 
     if ctx.engine.vlm.enabled:
         ctx.engine.worker.start()
-        for corner in ctx.engine.closer.corners():
-            job = ctx.engine.worker.run_sync(
-                lambda c=corner: ctx.engine.closer.step_vlm_corner(
-                    bgr, res.texts, c), name=corner, timeout=90)
-            n = len(job.result or [])
-            print(f"\nVLM {corner}: {job.ms:.0f}ms  {n} ứng viên"
-                  f"{'  LỖI: ' + job.error if job.error else ''}")
-            for c in (job.result or []):
-                print(f"  {c.label!r} @({c.cx:.0f},{c.cy:.0f}) "
-                      f"{c.w:.0f}x{c.h:.0f}  (diện tích {c.w*c.h:.0f}px²)")
+        job = ctx.engine.worker.run_sync(
+            lambda: ctx.engine.closer.step_vlm_top(bgr, res.texts),
+            name="vlm:top", timeout=90)
+        n = len(job.result or [])
+        print(f"\nVLM dải trên: {job.ms:.0f}ms  {n} ứng viên"
+              f"{'  LỖI: ' + job.error if job.error else ''}")
+        for c in (job.result or []):
+            print(f"  {c.label!r} @({c.cx:.0f},{c.cy:.0f}) "
+                  f"{c.w:.0f}x{c.h:.0f}  (diện tích {c.w*c.h:.0f}px²)")
 
     blocked = [e for e in ctx.bus.recent if e.get("type") == "candidate_blocked"]
     if blocked:

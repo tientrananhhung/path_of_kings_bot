@@ -80,7 +80,8 @@ class RuleEngine:
     def evaluate(self, bgr: np.ndarray, idle_seconds: float,
                  texts_low: str = "", *, ignore_enabled: bool = False,
                  ignore_cooldown: bool = False,
-                 skip: set[str] | None = None) -> tuple[Rule, dict] | None:
+                 skip: set[str] | None = None,
+                 texts: list | None = None) -> tuple[Rule, dict] | None:
         """Trả (rule khớp đầu tiên theo priority, thông tin phụ) hoặc None.
 
         skip: bỏ qua các luật đã thử mà không hành động được (ví dụ tap_text
@@ -132,7 +133,26 @@ class RuleEngine:
                 info["center"] = center
             elif kind == "text":
                 needle = str(rule.when.get("contains", "")).lower()
-                ok = bool(needle) and needle in texts_low
+                y0, y1 = rule.when.get("y_min"), rule.when.get("y_max")
+                if not needle:
+                    ok = False
+                elif y0 is None and y1 is None:
+                    ok = needle in texts_low
+                else:
+                    # Ràng buộc VÙNG DỌC — bắt buộc với keyword cũng xuất hiện
+                    # trên HUD. Bug đã gặp thật: nav bar đáy màn hình đọc ra
+                    # "tauern | shop | pup raid | bosses | rank", nên luật
+                    # "pup raid" khớp ở MỌI màn và bot quẹt trái không ngừng.
+                    # Trên dialog thật, tiêu đề "PUP RAID" ở y/h = 0.192.
+                    ok, hh = False, (bgr.shape[0] if bgr is not None else 1)
+                    for t in (texts or []):
+                        if needle not in t.text.lower():
+                            continue
+                        ry = t.cy / max(1, hh)
+                        if float(y0 or 0.0) <= ry <= float(y1 or 1.0):
+                            ok, info["y"] = True, round(ry, 3)
+                            break
+                        info.setdefault("y_loại", []).append(round(ry, 3))
 
             if ok:
                 return (rule, info)

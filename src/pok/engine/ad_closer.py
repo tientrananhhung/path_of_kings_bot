@@ -38,8 +38,6 @@ class AdAttempt:
     said_wait: str = ""              # để log một lần mỗi mốc, khỏi spam
     step: int = 0
     tried_points: list[tuple[float, float]] = field(default_factory=list)
-    corner_idx: int = 0
-    blind_idx: int = 0
     last_scan: float = 0.0
     candidates: list[Candidate] = field(default_factory=list)
 
@@ -63,8 +61,8 @@ class AdCloser:
 
     # ------------------------------------------------------------ lọc
     def _gate_geometry(self, c: Candidate, w: int, h: int,
-                       in_corner_crop: bool) -> bool:
-        if in_corner_crop:
+                       in_crop: bool) -> bool:
+        if in_crop:
             return True
         band = float(self.cfg.get("edge_band_pct", 0.15))
         rx, ry = c.cx / w, c.cy / h
@@ -118,8 +116,26 @@ class AdCloser:
         return cheap.edge_density(bgr, c.cx, c.cy) >= thr
 
     def _gate_blocklist(self, c: Candidate, texts: list[TextBox]) -> tuple[bool, list[str]]:
+        """Bán kính khác nhau theo ĐỘ MẠNH của bằng chứng.
+
+        Cửa này sinh ra để canh tầng C: Florence-2 đã thực sự gán nhãn nút
+        Install là "close button", nên ứng viên VLM phải bị nghi ngờ.
+
+        Dấu ✕ của tầng 2b thì khác hẳn — nó là bằng chứng HÌNH HỌC, đo bằng
+        "mực nằm trên hai đường chéo, đường giữa trống", không phải model đoán.
+        Áp cùng một bán kính rộng cho cả hai là lấy mức nghi ngờ dành cho thứ
+        yếu nhất mà đè lên thứ chắc nhất — và đó chính là thứ làm hỏng phiên
+        20260830-080353: ✕ đúng ở (372,68) cách cạnh chữ "PLAY NOW" 38.8pt, bị
+        chặn 20 lần liên tiếp trong 46 giây.
+
+        Điểm nằm TRONG hộp chữ thì chặn bất kể nguồn — đó là tap thẳng vào chữ.
+        """
         block = [b.lower() for b in self.cfg.get("blocklist", [])]
-        near = ocr.text_near(texts, c.cx, c.cy, radius=40.0)
+        r = float(self.cfg.get(
+            "blocklist_radius_icon_pt" if c.origin == "icon"
+            else "blocklist_radius_pt",
+            20.0 if c.origin == "icon" else 40.0))
+        near = ocr.text_near(texts, c.cx, c.cy, radius=r)
         for t in near:
             for b in block:
                 if b in t:
@@ -127,14 +143,14 @@ class AdCloser:
         return (True, near)
 
     def filter_candidates(self, cands: list[Candidate], bgr: np.ndarray,
-                          texts: list[TextBox], *, in_corner_crop: bool = False,
+                          texts: list[TextBox], *, in_crop: bool = False,
                           crop_area: float | None = None,
                           side_range: tuple[float, float] | None = None
                           ) -> list[Candidate]:
         h, w = bgr.shape[:2]
         kept: list[Candidate] = []
         for c in cands:
-            if not self._gate_geometry(c, w, h, in_corner_crop):
+            if not self._gate_geometry(c, w, h, in_crop):
                 c.blocked, c.block_reason = True, "geometry"
             elif not self._gate_size(c, w, h, crop_area):
                 c.blocked, c.block_reason = True, "size"
@@ -242,68 +258,40 @@ class AdCloser:
                 max_mid=float(self.cfg.get("icon_max_mid", 0.15)))
         ]
         cands.sort(key=lambda c: -c.score)
-        # in_corner_crop=False -> cửa hình học (dải mép) được áp dụng
+        # in_crop=False -> cửa hình học (dải mép) được áp dụng
         return self.filter_candidates(cands, bgr, texts)
 
-    # ------------------------------------------- bước 3: VLM trên crop góc
-    def step_vlm_corner(self, bgr: np.ndarray, texts: list[TextBox],
-                        corner: str) -> list[Candidate]:
-        box = int(self.cfg.get("corner_box", 130))
-        # Cắt góc của MÀN HÌNH THẬT, không phải của cửa sổ. Ô góc `tr` theo cửa
-        # sổ có 38 hàng đen thuần ở trên và 8 cột đen bên phải — gần một phần ba
-        # tấm crop là viền máy. Xem `cheap.content_rect`.
+    # --------------------------------- bước 3: VLM trên dải 25% trên cùng
+    def step_vlm_top(self, bgr: np.ndarray,
+                     texts: list[TextBox]) -> list[Candidate]:
+        """Hỏi VLM MỘT lần trên dải trên cùng, thay cho 4 lần quét 4 góc.
+
+        Vì sao bỏ crop góc: nút đóng không nhất thiết sát góc — ✕ của App Store
+        sheet ở (46,145) nằm NGOÀI ô góc 130x130 nên trước đây không bao giờ
+        được nhìn thấy. Còn dải trên thì giữ trọn 5/5 nút đã đo (xem
+        `cheap.crop_top_band`), và 4 lần gọi ~4.2s rút còn 1 lần ~0.6s.
+
+        Cắt theo MÀN HÌNH THẬT, không phải cửa sổ: viền máy 38pt phía trên là
+        đen thuần, đưa cho Florence-2 chỉ tổ nhiễu. Xem `cheap.content_rect`.
+        """
+        pct = float(self.cfg.get("vlm_band_top", 0.25))
         sx, sy, sw, sh = cheap.content_rect(bgr)
         screen = bgr[sy:sy + sh, sx:sx + sw]
-        crop, (ox, oy) = cheap.crop_corner(screen, corner, box)
+        crop, (ox, oy) = cheap.crop_top_band(screen, pct)
         raw = self.vlm.detect_in_crop(crop)
         for c in raw:
             c.cx += ox + sx
             c.cy += oy + sy
-            c.origin = f"vlm:{corner}"
+            c.origin = "vlm:top"
         v = self.cfg.get("vlm", {})
-        # in_corner_crop=True: đã crop góc nên khỏi cần cửa hình học nữa,
-        # nhưng PHẢI truyền crop_area để chặn box phủ gần hết crop.
+        # in_crop=True: đã giới hạn theo dải trên nên không áp cửa dải mép nữa —
+        # chính dải trên LÀ ràng buộc hình học. Vẫn PHẢI truyền crop_area:
+        # không thấy gì thì Florence-2 trả box phủ gần hết crop.
         return self.filter_candidates(
-            raw, bgr, texts, in_corner_crop=True,
+            raw, bgr, texts, in_crop=True,
             crop_area=float(crop.shape[0] * crop.shape[1]),
             side_range=(float(v.get("min_side_pt", 20)),
                         float(v.get("max_side_pt", 50))))
-
-    # ------------------------------------------------- bước 5: blind tap
-    def blind_points(self, bgr: np.ndarray,
-                     texts: list[TextBox]) -> list[tuple[float, float]]:
-        """Điểm blind tap, trả về rel theo CỬA SỔ để đưa thẳng cho `Actuator`.
-
-        `blind_tap.at` trong config là rel theo MÀN HÌNH THẬT, không phải theo
-        cửa sổ. Bug đã gặp: (0.93, 0.05) hiểu theo cửa sổ ra điểm (381,45), trừ
-        viền 38pt đi thì chỉ cách mép trên màn hình 7pt — vùng notch, không phải
-        chỗ nút đóng. Cả hai blind tap của bước 5 đều bắn vào chỗ trống.
-
-        Vẫn phải đi qua cửa blocklist: blind tap là điểm đoán, không có gì bảo
-        đảm dưới nó không phải nút Install. Đo trên màn quảng cáo playable
-        20260828-155606: điểm trái-dưới rơi cách chữ "Download" 37pt -> bị chặn,
-        đúng như mong muốn.
-        """
-        h, w = bgr.shape[:2]
-        sx, sy, sw, sh = cheap.content_rect(bgr)
-        out: list[tuple[float, float]] = []
-        for b in self.cfg.get("blind_tap", []):
-            bx, by = tuple(b.get("at", [0.5, 0.5]))
-            cx, cy = sx + bx * sw, sy + by * sh
-            probe = Candidate(cx=cx, cy=cy, w=1, h=1, label="blind",
-                              score=0.0, origin="blind")
-            ok, near = self._gate_blocklist(probe, texts)
-            if not ok:
-                self.bus.publish({
-                    "type": "candidate_blocked", "reason": "blocklist",
-                    "label": "blind", "origin": "blind",
-                    "cx": round(cx, 1), "cy": round(cy, 1),
-                    "rel": [round(cx / w, 4), round(cy / h, 4)],
-                    "nearby": near,
-                })
-                continue
-            out.append((cx / w, cy / h))
-        return out
 
     # ------------------------------------------------------------ tiện ích
     def already_tried(self, attempt: AdAttempt, rel: tuple[float, float],
@@ -312,5 +300,3 @@ class AdCloser:
         return any(abs(rel[0] - p[0]) < tol and abs(rel[1] - p[1]) < tol
                    for p in attempt.tried_points)
 
-    def corners(self) -> list[str]:
-        return list(self.cfg.get("vlm", {}).get("corners", ["tr", "tl", "br", "bl"]))
