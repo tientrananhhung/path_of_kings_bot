@@ -881,3 +881,208 @@ y_max = 0
 action = "tap_text"
 text = "collect"
 dy = 0
+
+[[rule]]
+name = "GOLDEN EGG -> Chọn Steal"
+enabled = true
+priority = 43
+cooldown_s = 3
+enters_ad = false
+
+[rule.when]
+kind = "text"
+contains = "golden egg"
+y_min = 0
+y_max = 0
+
+[rule.do]
+action = "tap_text"
+text = "steal"
+dy = 0
+
+[[rule]]
+name = "GOLDEN EGG -> Chọn COLLECT"
+enabled = true
+priority = 44
+cooldown_s = 3
+enters_ad = false
+
+[rule.when]
+kind = "text"
+contains = "golden egg"
+y_min = 0
+y_max = 0
+
+[rule.do]
+action = "tap_text"
+text = "collect"
+dy = 0
+
+[[rule]]
+name = "GOBLIN INFLUENCER -> Chọn Smack"
+enabled = true
+priority = 45
+cooldown_s = 3
+enters_ad = false
+
+[rule.when]
+kind = "text"
+contains = "goblin influencer"
+y_min = 0
+y_max = 0
+
+[rule.do]
+action = "tap_text"
+text = "smack"
+dy = 0
+
+[[rule]]
+name = "GOBLIN INFLUENCER -> Chọn COLLECT"
+enabled = true
+priority = 46
+cooldown_s = 3
+enters_ad = false
+
+[rule.when]
+kind = "text"
+contains = "goblin influencer"
+y_min = 0
+y_max = 0
+
+[rule.do]
+action = "tap_text"
+text = "collect"
+dy = 0
+
+[[rule]]
+name = "CONSPIRACY WIZARD -> Chọn Help"
+enabled = true
+priority = 47
+cooldown_s = 3
+enters_ad = false
+
+[rule.when]
+kind = "text"
+contains = "conspiracy wizard"
+y_min = 0
+y_max = 0
+
+[rule.do]
+action = "tap_text"
+text = "help"
+dy = 0
+
+[[rule]]
+name = "CONSPIRACY WIZARD -> Chọn COLLECT"
+enabled = true
+priority = 48
+cooldown_s = 3
+enters_ad = false
+
+[rule.when]
+kind = "text"
+contains = "conspiracy wizard"
+y_min = 0
+y_max = 0
+
+[rule.do]
+action = "tap_text"
+text = "collect"
+dy = 0
+
+[[rule]]
+name = "CRYPTO GOBLIN -> Chọn Smack"
+enabled = true
+priority = 49
+cooldown_s = 3
+enters_ad = false
+
+[rule.when]
+kind = "text"
+contains = "crypto goblin"
+y_min = 0
+y_max = 0
+
+[rule.do]
+action = "tap_text"
+text = "smack"
+dy = 0
+
+[[rule]]
+name = "CRYPTO GOBLIN -> Chọn COLLECT"
+enabled = true
+priority = 50
+cooldown_s = 3
+enters_ad = false
+
+[rule.when]
+kind = "text"
+contains = "crypto goblin"
+y_min = 0
+y_max = 0
+
+[rule.do]
+action = "tap_text"
+text = "collect"
+dy = 0
+
+[[rule]]
+name = "ETERNYX SET -> Swipe trái (SKIP)"
+enabled = true
+priority = 51
+cooldown_s = 3
+enters_ad = false
+
+[rule.when]
+kind = "text"
+contains = "eternyx set"
+y_min = 0
+y_max = 0
+
+[rule.do]
+action = "swipe"
+from = [
+    0.5,
+    0.78,
+]
+to = [
+    0.05,
+    0.78,
+]
+duration_ms = 500
+
+[[rule]]
+name = "LOW BATTERY -> Chọn Kiss"
+enabled = true
+priority = 52
+cooldown_s = 3
+enters_ad = false
+
+[rule.when]
+kind = "text"
+contains = "low battery"
+y_min = 0
+y_max = 0
+
+[rule.do]
+action = "tap_text"
+text = "kiss"
+dy = 0
+
+[[rule]]
+name = "LOW BATTERY -> Chọn COLLECT"
+enabled = true
+priority = 53
+cooldown_s = 3
+enters_ad = false
+
+[rule.when]
+kind = "text"
+contains = "low battery"
+y_min = 0
+y_max = 0
+
+[rule.do]
+action = "tap_text"
+text = "collect"
+dy = 0

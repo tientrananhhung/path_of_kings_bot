@@ -193,9 +193,10 @@ def test_escalate_lưu_frame_làm_mẫu_khó(eng, tmp_path):
     tự bấm chụp thì gần như luôn muộn."""
     eng.act = ActGia()
     eng.vlm.enabled = False
+    eng.closer.yolo = None          # test thuần logic, không nạp model thật
     a = AdAttempt()
     a.started = time.time() - 999          # đã quét quá rescan_max_s
-    a.tried_points = [(0.907, 0.076), (0.137, 0.126)]
+    a.tried_points = [(0.907, 0.076, time.time()), (0.137, 0.126, time.time())]
     a.last_scan = 0.0
     eng.attempt = a
 

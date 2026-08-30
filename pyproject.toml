@@ -19,6 +19,12 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# AGPL-3.0. Chỉ cần khi bật bước 2c ([yolo] trong config/ads.toml).
+# KHÔNG kéo theo torch mới: nó chỉ đòi torch>=1.8, đã có sẵn 2.13 cho Florence-2.
+# Cài kèm --no-deps rồi cài tay phần còn lại nếu muốn giữ opencv-python-headless:
+#   ./.venv/bin/pip install --no-deps ultralytics ultralytics-thop ultralytics-platform
+#   ./.venv/bin/pip install matplotlib polars psutil requests nvidia-ml-py
+yolo = ["ultralytics>=8.4"]
 vlm = ["torch>=2.2", "transformers>=5.16", "einops", "timm"]
 dev = ["pytest>=8"]
 

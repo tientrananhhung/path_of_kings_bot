@@ -1,16 +1,26 @@
 # Tầng C — pipeline đóng quảng cáo
-# TRẦN thời gian ngồi xem, không phải giấc ngủ cố định: về tới màn game là ra
-# ngay (xem `_state_ad_watching`).
-# Vì sao 120s chứ không phải 5s — bug đã gặp, phiên 20260830-081318: chờ 5s rồi
-# vào quét trong khi quảng cáo CÒN ĐANG TẢI (OCR ra 4 chữ), bước 3 tap ứng viên
-# VLM ở (0.906,0.150) -> mở thẳng App Store, kẹt 45s, phải escalate + 5 cú vuốt
-# Home mới thoát. Một cú tap sớm tốn 60 giây.
-# Nhiều quảng cáo còn hiện nút đóng NGAY nhưng đang tắt, quanh nó là vòng tròn
-# đếm giờ — vòng tròn là ĐỒ HOẠ, `countdown_left()` đọc chữ nên không thấy.
-# TIMEOUTS[AD_WATCHING] trong states.py phải lớn hơn số này.
-min_watch_seconds = 120.0
+# Chờ bao lâu SAU KHI quảng cáo đã hiện rồi mới bắt đầu tìm nút đóng.
+# Đủ để quảng cáo tải xong — bug đã gặp (phiên 20260830-081318): quét lúc mới
+# 5 giây, màn còn đang tải (OCR ra 4 chữ), tap ứng viên VLM rác -> mở thẳng App
+# Store, kẹt 45 giây. Không cần lớn hơn: `_ad_left` đã bảo đảm quảng cáo thật
+# sự hiện lên rồi mới tính giờ, và `retry_after_s` cho phép tap lại nút đang
+# tắt sau khi nó sáng.
+min_watch_seconds = 8.0
+
+no_ad_grace_s     = 5.0
 rescan_interval_s = 2.0
-rescan_max_s      = 45.0
+# TRẦN TỔNG cho một quảng cáo: quét tìm nút đóng tối đa ngần này giây rồi mới
+# escalate (vuốt Home, mất phần thưởng). Quảng cáo có thể dài tới 120 giây nên
+# đừng bỏ cuộc sớm hơn thế. Không tính thời gian ngồi chờ đếm ngược —
+# `scanning_elapsed()` trừ phần đó ra.
+# TIMEOUTS[AD_CLOSING] trong states.py phải lớn hơn số này CỘNG
+# countdown_max_wait_s, nếu không STUCK cắt ngang.
+rescan_max_s      = 120.0
+
+# Tap một chỗ không ăn thì chờ ngần này giây rồi được tap lại. KHÔNG cấm vĩnh
+# viễn: nút đóng lúc đầu thường đang tắt (vòng tròn đếm giờ), tap không ăn, mà
+# cấm vĩnh viễn là loại mất đúng cái nút thật.
+retry_after_s     = 15.0
 edge_band_pct     = 0.15    # cửa hình học: tâm phải nằm trong dải này
 max_area_pct      = 0.04    # cửa kích thước
 # Chờ bao lâu sau cú tap rồi mới kết luận nó có ăn không.
@@ -88,8 +98,15 @@ close_keywords = ["skip", "skip ad", "close", "đóng", "continue", "tiếp tụ
 # Quy tắc: chữ nào cũng xuất hiện trên NÚT CỦA GAME thì không được ở đây.
 # Đã bỏ: continue / done / xong (game có cả ba), và ×/✕/x (dưới 3 ký tự,
 # `_match_word` vốn đã loại). Dấu ✕ vẽ bằng đồ hoạ do `_icon_near_edge` lo.
+# "download"/"install" sát mép = khung chuẩn của quảng cáo PLAYABLE: icon app
+# kèm nhãn tải về, thường ở góc trên trái. Đây là tín hiệu duy nhất bắt được ca
+# khó nhất — playable không có ✕, không có keyword đóng nào, nút đóng là `▶▶|`
+# nên cả 4 cửa còn lại của `classify` đều trượt và bot tưởng đang ở màn game.
+# (Phiên 20260830-111459: bot đứng im 187 giây trên đúng loại màn này.)
+# Đo trên 30 ảnh data/captures: xuất hiện ở 0 màn game, 2 màn quảng cáo.
+# Game không có nút tải app nào nên rủi ro dương tính giả rất thấp.
 classify_keywords = ["skip", "skip ad", "close", "đóng", "no thanks",
-                     "bỏ qua", "tiếp tục"]
+                     "bỏ qua", "tiếp tục", "download", "install"]
 
 # Bán kính cửa blocklist, đo tới CẠNH hộp chữ (không phải tâm).
 # Hai mức theo độ mạnh của bằng chứng:
@@ -114,6 +131,33 @@ blocklist = ["install", "cài đặt", "get", "download", "tải", "play", "chơ
 # ✕ E.D.E.N 0.135 · ✕ Binance 0.101 · ✕ playable 0.076 · nút tròn skip 0.137.
 # 5/5 dưới 0.17 -> 0.25 giữ trọn, mà 4 lần gọi ~4.2s rút còn 1 lần ~0.6s.
 vlm_band_top      = 0.25
+
+# Bước 2c — detector TỰ TRAIN, đứng giữa 2b (dò ✕) và tầng C (Florence-2).
+# Rẻ hơn tầng C ~30 lần và học được nhiều hình thay vì một hình viết tay như
+# `close_icon`: nút tròn skip, nút đóng đang tắt có vành đếm giờ...
+#
+# CHƯA CÓ MODEL. Để enabled = false cho tới khi train xong; thiếu file trọng số
+# thì bước 2c tự bỏ qua, pipeline chạy y như trước.
+#
+# Dữ liệu train đang được thu tự động vào data/models/../data/samples/ mỗi lần
+# bot đóng được quảng cáo (xem `collect_samples`). Cần vài trăm mẫu.
+# `ultralytics` CHƯA cài — nó là AGPL-3.0 và kéo theo cây phụ thuộc torch riêng,
+# có thể đá nhau với torch 2.13 + transformers 5.16 của Florence-2. Cài lúc sắp
+# train, đừng cài trước.
+[yolo]
+enabled = true
+model   = "data/models/roboflow_v1.pt"
+conf    = 0.25
+imgsz   = 640
+device  = "mps"
+# Class nào được coi là nút đóng. RỖNG = nhận mọi class.
+#
+# Vì sao để rỗng, dù model có sẵn class `close_button`/`X-Button`: đo trên 29
+# ảnh thật trong data/captures, model chỉ phát hiện được ĐÚNG 2 lần — và cả hai
+# đều nằm trúng dấu ✕ thật (lệch 2pt) nhưng bị gán nhãn `normal_arrow`.
+# Lọc theo class sẽ vứt đi đúng hai cái duy nhất nó làm được.
+# Định vị đã học được, phân loại thì chưa. Siết lại khi model đủ dữ liệu.
+classes = []
 
 [vlm]
 enabled = true

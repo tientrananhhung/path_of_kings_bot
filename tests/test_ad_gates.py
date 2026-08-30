@@ -93,12 +93,29 @@ def test_cửa_kích_thước_tương_đối_chặn_box_phủ_hết_crop(closer)
 
 
 def test_không_tap_lại_đúng_chỗ_vừa_trượt(closer):
+    import time
+
     from pok.engine.ad_closer import AdAttempt
     a = AdAttempt()
-    a.tried_points.append((0.93, 0.05))
+    a.tried_points.append((0.93, 0.05, time.time()))
     assert closer.already_tried(a, (0.93, 0.05))
     assert closer.already_tried(a, (0.95, 0.06))
     assert not closer.already_tried(a, (0.07, 0.05))
+
+
+def test_nhưng_được_tap_lại_sau_retry_after_s(closer):
+    """Nút đóng lúc đầu thường đang TẮT, quanh nó là vòng tròn đếm giờ. Tap lúc
+    đó không ăn. Cấm vĩnh viễn là loại mất đúng cái nút thật khỏi danh sách,
+    kể cả sau khi nó sáng lên — rồi bot escalate về Home trong khi nút đóng
+    nằm ngay đó."""
+    import time
+
+    from pok.engine.ad_closer import AdAttempt
+    han = float(closer.cfg.get("retry_after_s", 15.0))
+    a = AdAttempt()
+    a.tried_points.append((0.93, 0.05, time.time() - (han + 1)))
+
+    assert not closer.already_tried(a, (0.93, 0.05))
 
 
 def test_cửa_nền_trống_dùng_ảnh_thật(closer):

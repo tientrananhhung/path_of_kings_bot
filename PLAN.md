@@ -24,7 +24,8 @@
 - `mss` — nhanh nhưng vẽ con trỏ; không dùng cho so ảnh.
 - `CGEventPostToPid` — **không** điều khiển được (bỏ qua window server, iPhone Mirroring cần đường HID).
 - AppleScript `System Events → click at` — **không ăn** (đi qua Accessibility API, không phải HID).
-- YOLOv8 — **bỏ hoàn toàn**. Game đủ dễ, chỉ cần swipe/tap theo vị trí.
+- YOLOv8 — **bỏ hoàn toàn cho combat**. Game đủ dễ, chỉ cần swipe/tap theo vị trí.
+  (Vẫn dùng cho việc KHÁC: bước 2c tìm nút đóng quảng cáo — xem CLAUDE.md.)
 - Florence-2 trên **cả màn hình** — gán nhãn nút **Install** là "close button". Bắt buộc crop góc.
 
 ### 0.3 Ràng buộc thiết kế phát sinh từ POC

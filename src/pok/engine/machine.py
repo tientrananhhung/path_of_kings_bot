@@ -21,6 +21,7 @@ from ..perception import cheap
 from ..perception.classify import _match_word, classify, keywords_for_classify
 from ..perception.types import ScreenKind
 from ..perception.vlm import FlorenceVLM
+from ..perception.yolo import YoloDetector
 from ..perception.worker import PerceptionWorker
 from ..store.events import EventBus
 from ..store.samples import SampleWriter
@@ -52,9 +53,10 @@ class BotEngine:
         self.act = Actuator(self.guard, bus)
         self.stats = SessionStats()
         self.vlm = FlorenceVLM(cfg.ads)
+        self.yolo = YoloDetector(cfg.ads)
         self.worker = PerceptionWorker()
         self.rules = RuleEngine(cfg.game, templates_dir=TEMPLATES_DIR)
-        self.closer = AdCloser(cfg.ads, self.vlm, bus)
+        self.closer = AdCloser(cfg.ads, self.vlm, bus, yolo=self.yolo)
         self.dog = Watchdog(self.act, bus, self.stats)
         self.samples = SampleWriter(
             data_path("samples", ".keep").parent,
@@ -79,6 +81,12 @@ class BotEngine:
         self._classify_hash = None
         self._said_stale = False
         self._said_ad_rule = False
+        # phash của màn hình LÚC VỪA VÀO quảng cáo, và cờ "đã thật sự rời khỏi
+        # nó chưa". Bằng chứng "có luật tầng A khớp" đúng ở CẢ HAI phía — trước
+        # khi quảng cáo kịp hiện, và sau khi đã đóng xong — nên không dùng được
+        # nếu chưa biết mình đã đi khỏi màn game hay chưa.
+        self._ad_entry_hash = None
+        self._ad_left = False
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
         self._paused = False
@@ -106,6 +114,8 @@ class BotEngine:
             # giờ, đừng để nó rơi vào lúc gặp quảng cáo đầu tiên
             self.vlm.warm_size = 224      # xấp xỉ dải 25% (394x213)
             self.vlm.prewarm(self.bus)
+        if self.yolo.enabled:
+            self.yolo.prewarm(self.bus)      # 3s khởi động nguội, xem yolo.py
         self._stop.clear()
         self._paused = False
         self._goto(BotState.PREFLIGHT)
@@ -140,6 +150,9 @@ class BotEngine:
         self.stats.add_state_time(prev.value, time.time() - self.entered_at)
         self.state = s
         self.entered_at = time.time()
+        if s is BotState.AD_WATCHING:
+            self._ad_entry_hash = None
+            self._ad_left = False
         if s is BotState.AD_CLOSING and self.attempt is None:
             self.attempt = AdAttempt()
         if s not in (BotState.AD_CLOSING, BotState.AD_WATCHING):
@@ -486,6 +499,40 @@ class BotEngine:
         tròn đếm thời gian — vòng tròn đó là đồ hoạ, `countdown_left()` đọc chữ
         nên không thấy. Chờ đủ lâu là cách duy nhất hiện có để không tap vào nó.
         """
+        # BƯỚC ĐẦU TIÊN: đã thật sự rời màn game chưa?
+        # Bug đã gặp (phiên 20260830-111459): luật `enters_ad` bắn lúc 6.3s,
+        # 0.2 giây sau bot đã tự kết luận "quảng cáo đã đóng" và về GAME_PLAY —
+        # trong khi quảng cáo còn chưa kịp tải, màn hình vẫn là dialog cũ nên
+        # chính cái luật vừa mở quảng cáo lại thành bằng chứng "đã về game".
+        # Quảng cáo hiện lên sau đó, `classify` trả GAME (playable không có ✕,
+        # không keyword) nên không còn đường nào quay lại AD_CLOSING. Bot đứng
+        # im 187 giây.
+        # `classify` nói AD là ĐÃ ĐỦ — khỏi cần chờ màn hình đổi.
+        # Bug đã gặp (phiên 20260830-154455): quảng cáo end-card nền đen, ảnh
+        # TĨNH, có ✕ rõ ở (372,126). Vào AD_WATCHING vì classify ra AD, nhưng
+        # phash không bao giờ đổi -> cửa grace bên dưới kết luận "không có
+        # quảng cáo nào" -> về GAME_PLAY -> classify lại ra AD -> vào lại.
+        # Vòng lặp 5 giây/lần, không bao giờ tới AD_CLOSING (cần 8s) nên không
+        # bao giờ tap. Grace chỉ dành cho ca vào bằng luật `enters_ad` mà quảng
+        # cáo không hiện ra.
+        if res.kind is ScreenKind.AD:
+            self._ad_left = True
+        if self._ad_entry_hash is None:
+            self._ad_entry_hash = cheap.phash(bgr)
+        if not self._ad_left:
+            d = cheap.phash_distance(cheap.phash(bgr), self._ad_entry_hash)
+            if d > STALE_PHASH_DIST:
+                self._ad_left = True
+            else:
+                # Màn hình y nguyên sau ngần này giây -> chẳng có quảng cáo nào
+                # hiện ra, luật `enters_ad` báo nhầm. Về game, đừng chờ hết trần.
+                cho = float(self.cfg.ads.get("no_ad_grace_s", 5.0))
+                if self.elapsed >= cho:
+                    self._goto(BotState.GAME_PLAY,
+                               f"chờ {cho:.0f}s mà màn hình không đổi -> "
+                               f"không có quảng cáo nào")
+                return
+
         back = self._back_to_game(res, bgr)
         if back:
             self.stats.note_close("step0")
@@ -621,7 +668,7 @@ class BotEngine:
             rel = (c.cx / w, c.cy / h)
             if self.closer.already_tried(a, rel):
                 continue
-            a.tried_points.append(rel)
+            a.tried_points.append((*rel, time.time()))
             self._note_tap(a, bgr, c, "2", f"OCR '{c.label}'")
             self.act.tap(rel, win, source="ad_step",
                          label=f"bước 2 OCR '{c.label}'", frame_id=fid)
@@ -633,10 +680,25 @@ class BotEngine:
             rel = (c.cx / w, c.cy / h)
             if self.closer.already_tried(a, rel):
                 continue
-            a.tried_points.append(rel)
+            a.tried_points.append((*rel, time.time()))
             self._note_tap(a, bgr, c, "2b", f"✕ điểm={c.score}")
             self.act.tap(rel, win, source="ad_step",
                          label=f"bước 2b ✕ {c.origin} điểm={c.score}",
+                         frame_id=fid)
+            return
+
+        # --- bước 2c: detector tự train, cả frame, ~20ms ---
+        # Đứng TRƯỚC tầng C vì rẻ hơn 30 lần. Chưa có model thì trả rỗng và rơi
+        # thẳng xuống dưới, pipeline chạy y như trước.
+        a.step = 23       # 23 = "bước 2c" trong thống kê closed_by_step
+        for c in self.closer.step_yolo(bgr, res.texts):
+            rel = (c.cx / w, c.cy / h)
+            if self.closer.already_tried(a, rel):
+                continue
+            a.tried_points.append((*rel, time.time()))
+            self._note_tap(a, bgr, c, "2c", f"{c.label} {c.score:.2f}")
+            self.act.tap(rel, win, source="ad_step",
+                         label=f"bước 2c YOLO '{c.label}' {c.score:.2f}",
                          frame_id=fid)
             return
 
@@ -653,7 +715,7 @@ class BotEngine:
                 rel = (c.cx / w, c.cy / h)
                 if self.closer.already_tried(a, rel):
                     continue
-                a.tried_points.append(rel)
+                a.tried_points.append((*rel, time.time()))
                 self._note_tap(a, bgr, c, "3", c.label)
                 self.act.tap(rel, win, source="ad_step",
                              label=f"bước 3 VLM dải trên ({job.ms:.0f}ms)",
@@ -678,7 +740,7 @@ class BotEngine:
         # là loại mẫu duy nhất phải khoanh tay.
         ten = self.samples.record(
             bgr, None, "fail",
-            meta={"tried": [[round(x, 4), round(y, 4)] for x, y in a.tried_points],
+            meta={"tried": [[round(x, 4), round(y, 4)] for x, y, _ in a.tried_points],
                   "scanning_s": round(a.scanning_elapsed(), 1),
                   "vlm": bool(self.vlm.enabled)})
         self.bus.log("warn", "không đóng được quảng cáo -> escalate về Home"
@@ -719,6 +781,7 @@ class BotEngine:
                               hf=round(self.last_classify.hf, 2))
                          if self.last_classify else None),
             "vlm": self.vlm.info(),
+            "yolo": self.yolo.info(),
             "stats": self.stats.to_dict(),
             "ad_step": (self.attempt.step if self.attempt else None),
         }
